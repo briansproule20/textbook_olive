@@ -195,20 +195,39 @@ function buildBgMask(src) {
     }
   }
 
-  // Final pass: anti-aliased edges around interior white pockets can make the
-  // pocket connect to the character body through a thin rim of mid-gray pixels,
-  // so the whole cat reads as one connected component and the component-based
-  // detector misses it. Mark any remaining UNMARKED pixel whose color is
-  // essentially pure white as background regardless of connectivity. The
-  // threshold is intentionally strict (>=250) so cel-shaded interior markings
-  // (aussie blaze, penguin belly) with their slightly off-white shadows survive.
+  // Two-stage cleanup of remaining interior bg leakage:
+  //
+  // Stage 1: mark any unmarked pixel whose color is essentially pure white
+  // (>=250) as background. This catches isolated white pockets the connected-
+  // component pass missed because anti-aliased rim pixels bridged the pocket
+  // to the character body, making the whole thing read as one component.
+  //
+  // Stage 2: erosion-style edge expansion. Anti-aliased pixels just inside
+  // a pure-white pocket sit at ~235-249 brightness. Repeatedly mark any
+  // unmarked pixel adjacent to an already-marked bg pixel if its min(RGB)
+  // is >= 225. This eats the soft sliver around the pocket without touching
+  // mid-bright character pixels (cat fur, copper trim, etc.).
   for (let i = 0; i < w * h; i++) {
     if (final[i]) continue;
     const j = i * 4;
-    const r = src.data[j];
-    const g = src.data[j + 1];
-    const b = src.data[j + 2];
-    if (Math.min(r, g, b) >= 250) final[i] = 1;
+    if (Math.min(src.data[j], src.data[j + 1], src.data[j + 2]) >= 250) final[i] = 1;
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    const before = new Uint8Array(final);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        if (before[idx]) continue;
+        const j = idx * 4;
+        if (Math.min(src.data[j], src.data[j + 1], src.data[j + 2]) < 225) continue;
+        const hasMarked =
+          (x > 0 && before[idx - 1]) ||
+          (x < w - 1 && before[idx + 1]) ||
+          (y > 0 && before[idx - w]) ||
+          (y < h - 1 && before[idx + w]);
+        if (hasMarked) final[idx] = 1;
+      }
+    }
   }
 
   return final;
