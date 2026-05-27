@@ -531,6 +531,7 @@ async function prepareTiles() {
   const sheet = emptyPng(TILE_W * 4, TILE_H);
   const frames = {};
   const sizes = [];
+  const standaloneTiles = [];
 
   for (let idx = 0; idx < quadrants.length; idx++) {
     const q = quadrants[idx];
@@ -550,10 +551,17 @@ async function prepareTiles() {
       sourceSize: { w: TILE_W, h: TILE_H },
     };
     sizes.push({ name: q.name, scaled: { w: scaled.width, h: scaled.height } });
+    standaloneTiles.push({ name: q.name, png: scaled });
   }
 
   const outDir = path.join(OUT_ROOT, "tiles");
   await fs.mkdir(outDir, { recursive: true });
+  // Standalone single-tile PNGs (grass.png, dirt.png, etc.) so the welcome
+  // screen can use them as a repeating CSS background without needing to
+  // slice the atlas at runtime.
+  for (const { name, png } of standaloneTiles) {
+    await writePng(png, path.join(outDir, `${name}.png`));
+  }
   const outPng = path.join(outDir, "tiles.png");
   const outJson = path.join(outDir, "tiles.json");
   const outManifest = path.join(outDir, "manifest.json");
