@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Hud from "./Hud";
+import SpritePicker from "./SpritePicker";
 
 export default function GameCanvas() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -28,6 +29,7 @@ export default function GameCanvas() {
   return (
     <>
       <div id="game-root" ref={rootRef} />
+      <SpritePicker />
       <Hud />
     </>
   );
