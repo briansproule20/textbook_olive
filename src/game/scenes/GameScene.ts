@@ -698,13 +698,18 @@ export class GameScene extends Phaser.Scene {
       const atlas = atlasKey(spec.charId);
       if (!this.textures.exists(atlas)) continue;
       const { x, y } = isoToScreen(spec.ix, spec.iy);
-      const sprite = this.add.sprite(x, y, atlas, "idle_se_00");
+      // Static south-facing pose — SE is the closest cardinal in the 4-dir
+      // atlas (down-right 3/4 view, head pointed roughly toward the camera).
+      // Don't play any animation: NPCs should stand still, not bob or appear
+      // mid-stride. We pick frame 02 because the bob offset pattern is
+      // [0, -1, -2, -1] — frame 02 is the bottom of the bob, which reads as
+      // both feet on the ground for the penguin's source pose.
+      const sprite = this.add.sprite(x, y, atlas, "idle_se_02");
       sprite.setOrigin(0.5, 1);
       sprite.setScale(CHAR_SCALE);
       sprite.y += BASELINE_OFFSET * CHAR_SCALE;
       sprite.setDepth(worldObjectDepth(sprite.y));
-      const animId = `anim_idle_se_${spec.charId}`;
-      if (this.anims.exists(animId)) sprite.play(animId);
+      sprite.anims.stop();
 
       const nameLabel = this.add.text(sprite.x, sprite.y - sprite.displayHeight, spec.name, {
         fontFamily: "system-ui, sans-serif",
