@@ -44,7 +44,8 @@ const QUADRANT_FACING = {
   nw: { col: 1, row: 1 },
 };
 
-const BG_THRESHOLD = 220;
+const BG_THRESHOLD = 232;
+const BG_EDGE_SOFT = 200;
 
 async function exists(p) {
   try {
@@ -60,9 +61,59 @@ async function readPng(p) {
   return PNG.sync.read(buf);
 }
 
-function isBackground(r, g, b, a) {
+function looksLikeBg(r, g, b, a, threshold) {
   if (a < 16) return true;
-  return r >= BG_THRESHOLD && g >= BG_THRESHOLD && b >= BG_THRESHOLD;
+  return r >= threshold && g >= threshold && b >= threshold;
+}
+
+function buildBgMask(src) {
+  const { width: w, height: h } = src;
+  const mask = new Uint8Array(w * h);
+  const queue = [];
+  const push = (x, y) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const idx = y * w + x;
+    if (mask[idx]) return;
+    const i = idx * 4;
+    if (!looksLikeBg(src.data[i], src.data[i + 1], src.data[i + 2], src.data[i + 3], BG_THRESHOLD)) return;
+    mask[idx] = 1;
+    queue.push(idx);
+  };
+  for (let x = 0; x < w; x++) {
+    push(x, 0);
+    push(x, h - 1);
+  }
+  for (let y = 0; y < h; y++) {
+    push(0, y);
+    push(w - 1, y);
+  }
+  while (queue.length) {
+    const idx = queue.pop();
+    const x = idx % w;
+    const y = (idx - x) / w;
+    push(x + 1, y);
+    push(x - 1, y);
+    push(x, y + 1);
+    push(x, y - 1);
+  }
+  // soft edge pass: pixels adjacent to bg that are also near-white get marked,
+  // smoothing rim anti-aliasing without eating interior highlights.
+  const soft = new Uint8Array(mask);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      if (mask[idx]) continue;
+      const i = idx * 4;
+      if (!looksLikeBg(src.data[i], src.data[i + 1], src.data[i + 2], src.data[i + 3], BG_EDGE_SOFT)) continue;
+      const neighbors =
+        (x > 0 && mask[idx - 1]) ||
+        (x < w - 1 && mask[idx + 1]) ||
+        (y > 0 && mask[idx - w]) ||
+        (y < h - 1 && mask[idx + w]);
+      if (neighbors) soft[idx] = 1;
+    }
+  }
+  return soft;
 }
 
 function getPx(src, x, y) {
@@ -79,39 +130,40 @@ function setPx(dst, x, y, r, g, b, a) {
   dst.data[i + 3] = a;
 }
 
-function bboxInQuadrant(src, qx, qy, qw, qh) {
+function bboxInQuadrant(src, mask, qx, qy, qw, qh) {
   let minX = qw, minY = qh, maxX = -1, maxY = -1;
   for (let y = 0; y < qh; y++) {
     for (let x = 0; x < qw; x++) {
-      const [r, g, b, a] = getPx(src, qx + x, qy + y);
-      if (!isBackground(r, g, b, a)) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
+      const mi = (qy + y) * src.width + (qx + x);
+      if (mask[mi]) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
     }
   }
   if (maxX < 0) return null;
   return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
 }
 
-function extractCrop(src, qx, qy, bbox) {
+function extractCrop(src, mask, qx, qy, bbox) {
   const out = new PNG({ width: bbox.w, height: bbox.h });
   for (let y = 0; y < bbox.h; y++) {
     for (let x = 0; x < bbox.w; x++) {
-      const [r, g, b, a] = getPx(src, qx + bbox.x + x, qy + bbox.y + y);
-      const transparent = isBackground(r, g, b, a);
+      const sx = qx + bbox.x + x;
+      const sy = qy + bbox.y + y;
+      const mi = sy * src.width + sx;
       const di = (y * out.width + x) * 4;
-      if (transparent) {
+      const si = mi * 4;
+      if (mask[mi]) {
         out.data[di] = 0;
         out.data[di + 1] = 0;
         out.data[di + 2] = 0;
         out.data[di + 3] = 0;
       } else {
-        out.data[di] = r;
-        out.data[di + 1] = g;
-        out.data[di + 2] = b;
+        out.data[di] = src.data[si];
+        out.data[di + 1] = src.data[si + 1];
+        out.data[di + 2] = src.data[si + 2];
         out.data[di + 3] = 255;
       }
     }
@@ -201,6 +253,7 @@ async function prepareTiles() {
   if (src.width !== 1024 || src.height !== 1024) {
     throw new Error(`tiles.png must be 1024x1024, got ${src.width}x${src.height}`);
   }
+  const mask = buildBgMask(src);
   const quadrants = [
     { name: "grass", qx: 0, qy: 0 },
     { name: "dirt", qx: 512, qy: 0 },
@@ -214,9 +267,9 @@ async function prepareTiles() {
 
   for (let idx = 0; idx < quadrants.length; idx++) {
     const q = quadrants[idx];
-    const bbox = bboxInQuadrant(src, q.qx, q.qy, 512, 512);
+    const bbox = bboxInQuadrant(src, mask, q.qx, q.qy, 512, 512);
     if (!bbox) throw new Error(`empty quadrant for tile ${q.name}`);
-    const cropped = extractCrop(src, q.qx, q.qy, bbox);
+    const cropped = extractCrop(src, mask, q.qx, q.qy, bbox);
     const scaled = downscaleFit(cropped, TILE_MAX, TILE_MAX);
     const cellX = idx * TILE_CELL;
     const dx = cellX + Math.floor((TILE_CELL - scaled.width) / 2);
@@ -277,15 +330,16 @@ async function prepareCharacter(charId, rawPath) {
   if (src.width !== 1024 || src.height !== 1024) {
     throw new Error(`${charId}.png must be 1024x1024, got ${src.width}x${src.height}`);
   }
+  const mask = buildBgMask(src);
   // build per-facing baseline cell of 256x256
   const facingCells = {};
   for (const facing of Object.keys(QUADRANT_FACING)) {
     const { col, row } = QUADRANT_FACING[facing];
     const qx = col * 512;
     const qy = row * 512;
-    const bbox = bboxInQuadrant(src, qx, qy, 512, 512);
+    const bbox = bboxInQuadrant(src, mask, qx, qy, 512, 512);
     if (!bbox) throw new Error(`empty quadrant for ${charId}/${facing}`);
-    const cropped = extractCrop(src, qx, qy, bbox);
+    const cropped = extractCrop(src, mask, qx, qy, bbox);
     const scaled = downscaleFit(cropped, CHAR_INNER, CHAR_INNER);
     const cell = emptyPng(CHAR_FRAME, CHAR_FRAME);
     const dx = Math.floor((CHAR_FRAME - scaled.width) / 2);

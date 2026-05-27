@@ -47,6 +47,7 @@ interface RemotePlayer {
 
 const MOVE_SPEED = 180;
 const GRID_RADIUS = 20;
+const CHAR_SCALE = 0.55;
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -91,7 +92,8 @@ export class GameScene extends Phaser.Scene {
     const startScreen = isoToScreen(0, 0);
     this.player = this.add.sprite(startScreen.x, startScreen.y, this.charAtlas, "idle_se_00");
     this.player.setOrigin(0.5, 1);
-    this.player.y += BASELINE_OFFSET;
+    this.player.setScale(CHAR_SCALE);
+    this.player.y += BASELINE_OFFSET * CHAR_SCALE;
     this.player.setDepth(worldObjectDepth(this.player.y));
 
     this.playerLabel = this.add.text(this.player.x, this.player.y - this.player.displayHeight, this.localName, {
@@ -261,6 +263,7 @@ export class GameScene extends Phaser.Scene {
     if (this.remotes.has(id)) return;
     const sprite = this.add.sprite(state.x, state.y, this.charAtlas, "idle_se_00");
     sprite.setOrigin(0.5, 1);
+    sprite.setScale(CHAR_SCALE);
     const label = this.add.text(state.x, state.y - sprite.displayHeight, state.name, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",

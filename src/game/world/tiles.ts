@@ -3,10 +3,9 @@ export type TileFrame = (typeof TILE_FRAMES)[number];
 export const TILE_ATLAS_KEY = "tiles";
 
 export function tileAt(ix: number, iy: number): TileFrame {
-  const h = ((ix * 73856093) ^ (iy * 19349663)) >>> 0;
-  const bucket = h % 100;
-  if (bucket < 70) return "grass";
-  if (bucket < 85) return "dirt";
-  if (bucket < 93) return "sand";
-  return "farm";
+  const patchX = Math.floor(ix / 2);
+  const patchY = Math.floor(iy / 2);
+  const h = ((patchX * 73856093) ^ (patchY * 19349663)) >>> 0;
+  if (h % 100 < 22) return "dirt";
+  return "grass";
 }
