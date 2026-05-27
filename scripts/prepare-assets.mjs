@@ -758,8 +758,24 @@ async function main() {
       if (!fname.toLowerCase().endsWith(".png")) continue;
       const srcPath = path.join(objectsRawDir, fname);
       const destPath = path.join(objectsOutDir, fname);
-      await fs.copyFile(srcPath, destPath);
-      console.log(`[prep] object: ${path.relative(ROOT, destPath)}`);
+      // Reuse the character bg-mask pass to strip near-white / faintly-alpha
+      // backgrounds that GPT-Image-2 sometimes leaves behind. This also clears
+      // soft anti-aliased rim pixels so the object reads as a clean cutout.
+      const srcPng = await readPng(srcPath);
+      const mask = buildBgMask(srcPng);
+      const cleaned = emptyPng(srcPng.width, srcPng.height);
+      cleaned.data.set(srcPng.data);
+      for (let i = 0; i < mask.length; i++) {
+        if (mask[i]) {
+          const j = i * 4;
+          cleaned.data[j] = 0;
+          cleaned.data[j + 1] = 0;
+          cleaned.data[j + 2] = 0;
+          cleaned.data[j + 3] = 0;
+        }
+      }
+      await writePng(cleaned, destPath);
+      console.log(`[prep] object: ${path.relative(ROOT, destPath)} (bg-cleaned)`);
     }
   }
 

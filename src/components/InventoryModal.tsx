@@ -147,7 +147,13 @@ export default function InventoryModal() {
   );
 }
 
+const ITEM_ICONS: Record<string, string> = {
+  wood: "/sprites/objects/tree.png",
+  stone: "/sprites/objects/stone.png",
+};
+
 function Slot({ item }: { item: InventoryItem | null }) {
+  const iconUrl = item ? ITEM_ICONS[item.id] : undefined;
   return (
     <div
       style={{
@@ -169,16 +175,35 @@ function Slot({ item }: { item: InventoryItem | null }) {
     >
       {item ? (
         <>
-          <span style={{ color: COLORS.text, fontSize: 12 }}>{item.label}</span>
+          {iconUrl ? (
+            <div
+              style={{
+                width: "78%",
+                height: "78%",
+                backgroundImage: `url(${iconUrl})`,
+                backgroundSize: "contain",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "center",
+                imageRendering: "pixelated",
+              }}
+              title={item.label}
+            />
+          ) : (
+            <span style={{ color: COLORS.text, fontSize: 12 }}>{item.label}</span>
+          )}
           {item.qty !== undefined && item.qty > 1 && (
             <span
               style={{
                 position: "absolute",
                 bottom: 4,
                 right: 6,
-                fontSize: 10,
-                fontWeight: 700,
-                color: COLORS.accent,
+                fontSize: 11,
+                fontWeight: 800,
+                color: "#fff",
+                background: "rgba(0,0,0,0.55)",
+                padding: "1px 5px",
+                borderRadius: 6,
+                lineHeight: 1.2,
               }}
             >
               ×{item.qty}
