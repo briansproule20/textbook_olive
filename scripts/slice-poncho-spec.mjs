@@ -21,27 +21,32 @@ const REF = path.join(ROOT, "assets/reference/poncho-spec.png");
 const OUT_SE = path.join(ROOT, "assets/raw/walks/poncho/se.png");
 const OUT_NE = path.join(ROOT, "assets/raw/walks/poncho/ne.png");
 
-const CELL = 256;
+const SRC_CELL = 256;
+const OUT_CELL = 512; // upscale 2x so the 2x2 grid is 1024x1024 (prep expects this)
+const SCALE = OUT_CELL / SRC_CELL;
 const COLS = 4;
 const src = PNG.sync.read(await fs.readFile(REF));
 
 function makeGrid(srcRow, { flipX = false } = {}) {
-  const out = new PNG({ width: CELL * 2, height: CELL * 2 });
+  const out = new PNG({ width: OUT_CELL * 2, height: OUT_CELL * 2 });
   out.data.fill(0);
-  const srcY0 = srcRow * CELL;
+  const srcY0 = srcRow * SRC_CELL;
   const dest = [
     { dx: 0, dy: 0 },
-    { dx: CELL, dy: 0 },
-    { dx: 0, dy: CELL },
-    { dx: CELL, dy: CELL },
+    { dx: OUT_CELL, dy: 0 },
+    { dx: 0, dy: OUT_CELL },
+    { dx: OUT_CELL, dy: OUT_CELL },
   ];
   for (let f = 0; f < COLS; f++) {
-    const srcX0 = f * CELL;
+    const srcX0 = f * SRC_CELL;
     const { dx, dy } = dest[f];
-    for (let yy = 0; yy < CELL; yy++) {
-      for (let xx = 0; xx < CELL; xx++) {
-        const sx = flipX ? CELL - 1 - xx : xx;
-        const si = ((srcY0 + yy) * src.width + (srcX0 + sx)) * 4;
+    for (let yy = 0; yy < OUT_CELL; yy++) {
+      for (let xx = 0; xx < OUT_CELL; xx++) {
+        // Nearest-neighbour upscale to preserve pixel-art crispness
+        const syy = Math.floor(yy / SCALE);
+        const sxxBase = Math.floor(xx / SCALE);
+        const sx = flipX ? SRC_CELL - 1 - sxxBase : sxxBase;
+        const si = ((srcY0 + syy) * src.width + (srcX0 + sx)) * 4;
         const di = ((dy + yy) * out.width + (dx + xx)) * 4;
         let r = src.data[si];
         let g = src.data[si + 1];
