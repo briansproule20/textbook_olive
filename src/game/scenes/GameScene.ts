@@ -22,6 +22,7 @@ import {
   hasStoneAt,
   listAllStoneTiles,
 } from "../world/stones";
+import { NPCS } from "../world/npcs";
 import { addItem } from "../saves/saveGame";
 import { emitHarvest } from "../events";
 import {
@@ -80,6 +81,7 @@ export class GameScene extends Phaser.Scene {
   private charAtlas = "character-cat";
   private treeImages = new Map<string, Phaser.GameObjects.Image>();
   private stoneImages = new Map<string, Phaser.GameObjects.Image>();
+  private npcs: { sprite: Phaser.GameObjects.Sprite; nameLabel: Phaser.GameObjects.Text; bubble: Phaser.GameObjects.Text }[] = [];
 
   constructor() {
     super("GameScene");
@@ -99,13 +101,26 @@ export class GameScene extends Phaser.Scene {
     );
     this.load.image("tree", "/sprites/objects/tree.png");
     this.load.image("stone", "/sprites/objects/stone.png");
+    // Each NPC needs its own character atlas. De-dupe in case multiple NPCs
+    // share a sprite.
+    const npcAtlases = new Set(NPCS.map((n) => n.charId));
+    npcAtlases.delete(this.charId as never); // player atlas is already queued above
+    for (const charId of npcAtlases) {
+      this.load.atlas(
+        atlasKey(charId),
+        `/sprites/characters/${charId}/${charId}.png`,
+        `/sprites/characters/${charId}/${charId}.json`
+      );
+    }
   }
 
   create(): void {
     this.createAnimations();
+    this.createNpcAnimations();
     this.drawTileGrid();
     this.placeTrees();
     this.placeStones();
+    this.spawnNpcs();
 
     this.localName = loadOrCreateLocalName(CHARACTER_LABELS[this.charId]);
 
@@ -554,6 +569,66 @@ export class GameScene extends Phaser.Scene {
       const depleted = s.hp <= 0;
       const targetAlpha = depleted ? 0.45 : 1;
       if (img.alpha !== targetAlpha) img.setAlpha(targetAlpha);
+    }
+  }
+
+  // ---------- NPCs ----------
+
+  // Ensure each NPC atlas has its idle animation registered (mirrors the
+  // player's createAnimations() loop but only for atlases NPCs use).
+  private createNpcAnimations(): void {
+    const npcAtlases = new Set(NPCS.map((n) => atlasKey(n.charId)));
+    for (const atlas of npcAtlases) {
+      if (atlas === this.charAtlas) continue;
+      for (const anim of ANIMATIONS) {
+        const animId = `anim_${anim.key}_${atlas.replace("character-", "")}`;
+        if (this.anims.exists(animId)) continue;
+        const frames: Phaser.Types.Animations.AnimationFrame[] = [];
+        for (let i = 0; i < anim.frames; i++) {
+          frames.push({ key: atlas, frame: `${anim.key}_${String(i).padStart(2, "0")}` });
+        }
+        const frameRate = anim.key.startsWith("idle") ? 3 : 8;
+        this.anims.create({ key: animId, frames, frameRate, repeat: anim.loop ? -1 : 0 });
+      }
+    }
+  }
+
+  private spawnNpcs(): void {
+    for (const spec of NPCS) {
+      const atlas = atlasKey(spec.charId);
+      if (!this.textures.exists(atlas)) continue;
+      const { x, y } = isoToScreen(spec.ix, spec.iy);
+      const sprite = this.add.sprite(x, y, atlas, "idle_se_00");
+      sprite.setOrigin(0.5, 1);
+      sprite.setScale(CHAR_SCALE);
+      sprite.y += BASELINE_OFFSET * CHAR_SCALE;
+      sprite.setDepth(worldObjectDepth(sprite.y));
+      const animId = `anim_idle_se_${spec.charId}`;
+      if (this.anims.exists(animId)) sprite.play(animId);
+
+      const nameLabel = this.add.text(sprite.x, sprite.y - sprite.displayHeight, spec.name, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "13px",
+        color: "#ffd27a",
+        stroke: "#000000",
+        strokeThickness: 3,
+      });
+      nameLabel.setOrigin(0.5, 1);
+      nameLabel.setDepth(sprite.depth + 1);
+
+      const bubble = this.add.text(sprite.x, sprite.y - sprite.displayHeight - 18, spec.dialogue, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "13px",
+        color: "#0c1c0a",
+        backgroundColor: "#fff7c0",
+        padding: { left: 8, right: 8, top: 4, bottom: 4 },
+        stroke: "#0c1c0a",
+        strokeThickness: 0,
+      });
+      bubble.setOrigin(0.5, 1);
+      bubble.setDepth(sprite.depth + 2);
+
+      this.npcs.push({ sprite, nameLabel, bubble });
     }
   }
 }
