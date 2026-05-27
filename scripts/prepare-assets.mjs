@@ -13,7 +13,7 @@ const WALKS_DIR = path.join(RAW_DIR, "walks");
 const OUT_ROOT = path.join(ROOT, "public/sprites");
 
 const RAW_TILES = path.join(RAW_DIR, "tiles.png");
-const CHARACTERS = ["cat", "aussie"];
+const CHARACTERS = ["cat", "aussie", "penguin"];
 
 const TILE_NAMES = ["grass", "grass2", "dirt", "dirt2"];
 const TILE_CELL = 128;

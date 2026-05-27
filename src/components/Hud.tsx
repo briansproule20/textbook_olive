@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  CHARACTERS,
+  DEFAULT_CHARACTER,
+  loadSelectedCharacter,
+  saveSelectedCharacter,
+  type CharacterId,
+} from "@/game/sprites/characterTextures";
 
 interface GameStatus {
   action: string;
@@ -87,8 +94,25 @@ function Pill({ icon, label }: PillProps) {
   );
 }
 
+const CHAR_LABEL: Record<CharacterId, string> = {
+  cat: "Cat",
+  aussie: "Aussie",
+  penguin: "Penguin",
+};
+
 export default function Hud() {
   const [status, setStatus] = useState<GameStatus>(DEFAULT_STATUS);
+  const [selected, setSelected] = useState<CharacterId>(DEFAULT_CHARACTER);
+
+  useEffect(() => {
+    setSelected(loadSelectedCharacter());
+  }, []);
+
+  const pick = (id: CharacterId) => {
+    if (id === selected) return;
+    saveSelectedCharacter(id);
+    window.location.reload();
+  };
 
   useEffect(() => {
     let raf = 0;
@@ -121,14 +145,51 @@ export default function Hud() {
         right: 12,
         zIndex: 10,
         display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
         gap: 8,
-        pointerEvents: "none",
       }}
     >
-      <Pill icon={<PulseIcon />} label={status.action} />
-      <Pill icon={<CompassIcon />} label={status.facing} />
-      <Pill icon={<CrosshairIcon />} label={`${status.x}, ${status.y}`} />
-      <Pill label={`${status.fps} FPS`} />
+      <div style={{ display: "flex", gap: 8, pointerEvents: "none" }}>
+        <Pill icon={<PulseIcon />} label={status.action} />
+        <Pill icon={<CompassIcon />} label={status.facing} />
+        <Pill icon={<CrosshairIcon />} label={`${status.x}, ${status.y}`} />
+        <Pill label={`${status.fps} FPS`} />
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          padding: 6,
+          background: "rgba(20, 30, 22, 0.85)",
+          borderRadius: 999,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+        }}
+      >
+        {CHARACTERS.map((id) => {
+          const active = id === selected;
+          return (
+            <button
+              key={id}
+              onClick={() => pick(id)}
+              style={{
+                padding: "6px 14px",
+                background: active ? "#7cbf6a" : "transparent",
+                color: active ? "#0e1a10" : "#fff",
+                border: "none",
+                borderRadius: 999,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+                fontFamily: "system-ui, sans-serif",
+              }}
+            >
+              {CHAR_LABEL[id]}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

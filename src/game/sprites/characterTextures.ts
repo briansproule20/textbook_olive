@@ -1,4 +1,4 @@
-export const CHARACTERS = ["cat", "aussie"] as const;
+export const CHARACTERS = ["cat", "aussie", "penguin"] as const;
 export type CharacterId = (typeof CHARACTERS)[number];
 export const DEFAULT_CHARACTER: CharacterId = "cat";
 const CHARACTER_STORAGE_KEY = "poncho.character";
