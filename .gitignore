@@ -1,0 +1,10 @@
+node_modules
+.next
+tsconfig.tsbuildinfo
+.vercel
+out
+dist
+*.log
+.DS_Store
+.env*.local
+public/sprites/character/

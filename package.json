@@ -1,0 +1,29 @@
+{
+  "name": "iso-game",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "npm run prepare:character-sprites && next build",
+    "start": "next start",
+    "prepare:character-sprites": "node scripts/prepare-character-sprites.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "phaser": "^3.80.1",
+    "colyseus.js": "^0.15.20"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/node": "^20.14.10",
+    "pngjs": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.5"
+  }
+}
