@@ -440,22 +440,39 @@ export class GameScene extends Phaser.Scene {
     return { ix: ix + dx, iy: iy + dy };
   }
 
-  // Tiles the player can interact with on space: current tile + all 8
-  // surrounding tiles (cardinal + diagonal). With obstacle collision padding,
-  // the player ends up ~0.7 tiles from any obstacle, so a wider harvest reach
-  // makes the action feel snappy at any approach angle.
+  // Omnidirectional harvest reach. Scan iso tiles within HARVEST_RADIUS
+  // (Euclidean) of the player's foot in iso space. Same distance held in
+  // every direction; the player can harvest any tile whose center is closer
+  // than the radius regardless of approach angle.
+  //
+  // 1.5 ≈ collision_radius (0.85) + a half-tile so any tree/stone the player
+  // is touching collision-wise is harvestable, plus a tiny bit of extra grace.
+  // Returned tiles are sorted nearest-first so the closest resource wins ties.
+  private static readonly HARVEST_RADIUS = 1.5;
+  private static readonly HARVEST_RADIUS_SQ =
+    GameScene.HARVEST_RADIUS * GameScene.HARVEST_RADIUS;
+
   private nearbyTiles(): { ix: number; iy: number }[] {
     const footY = this.player.y - BASELINE_OFFSET * CHAR_SCALE;
     const iso = screenToIso(this.player.x, footY);
     const cx = Math.round(iso.x);
     const cy = Math.round(iso.y);
-    const out: { ix: number; iy: number }[] = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        out.push({ ix: cx + dx, iy: cy + dy });
+    const reach = Math.ceil(GameScene.HARVEST_RADIUS);
+    const candidates: { ix: number; iy: number; d2: number }[] = [];
+    for (let dx = -reach; dx <= reach; dx++) {
+      for (let dy = -reach; dy <= reach; dy++) {
+        const tx = cx + dx;
+        const ty = cy + dy;
+        const ex = iso.x - tx;
+        const ey = iso.y - ty;
+        const d2 = ex * ex + ey * ey;
+        if (d2 < GameScene.HARVEST_RADIUS_SQ) {
+          candidates.push({ ix: tx, iy: ty, d2 });
+        }
       }
     }
-    return out;
+    candidates.sort((a, b) => a.d2 - b.d2);
+    return candidates.map(({ ix, iy }) => ({ ix, iy }));
   }
 
   private tryHarvestTree(): void {
