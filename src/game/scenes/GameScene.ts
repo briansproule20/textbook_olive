@@ -164,14 +164,8 @@ export class GameScene extends Phaser.Scene {
     return { key: `${resolved.key}_${this.charId}`, flipX: resolved.flipX };
   }
 
-  // Tile sprites are drawn directly from the AI-painted atlas. Decorations
-  // (flowers / grass tufts / pebbles) are batched into ONE Graphics object
-  // at a single below-player depth so we don't pay for thousands of game
-  // objects — this is what made first-move FPS stutter before.
   private drawTileGrid(): void {
     const BORDER_COLOR = 0x2d3520;
-    const decor = this.add.graphics();
-    decor.setDepth(-500);
     for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
       for (let iy = -GRID_RADIUS; iy <= GRID_RADIUS; iy++) {
         const { x, y } = isoToScreen(ix, iy);
@@ -179,7 +173,6 @@ export class GameScene extends Phaser.Scene {
         const img = this.add.image(x, y, TILE_ATLAS_KEY, tileName);
         img.setOrigin(0.5, 0.5);
         img.setDepth(worldObjectDepth(y) - 1000);
-        this.paintDecorInto(decor, ix, iy, x, y, tileName);
       }
     }
 
@@ -198,35 +191,6 @@ export class GameScene extends Phaser.Scene {
     ];
     border.strokePoints([c[0], c[1], c[2], c[3]], true, true);
     border.setDepth(-900);
-  }
-
-  private paintDecorInto(g: Phaser.GameObjects.Graphics, ix: number, iy: number, x: number, y: number, tile: string): void {
-    if (ix === 0 && iy === 0) return;
-    if (!tile.startsWith("grass")) return;
-    const hash = ((ix * 2654435761) ^ (iy * 40503)) >>> 0;
-    const bucket = hash % 100;
-    if (bucket >= 28) return;
-    const jitter = ((hash >>> 8) % 9) - 4;
-    const px = x + jitter;
-    const py = y + (((hash >>> 16) % 7) - 3);
-    if (bucket < 10) {
-      g.fillStyle(0xfff2a8, 1);
-      g.fillCircle(px, py, 2);
-      g.fillStyle(0xf2c14e, 1);
-      g.fillCircle(px, py, 1);
-    } else if (bucket < 20) {
-      g.lineStyle(2, 0x4a7b3a, 1);
-      g.beginPath();
-      g.moveTo(px - 3, py + 2); g.lineTo(px - 2, py - 4);
-      g.moveTo(px, py + 2);     g.lineTo(px, py - 5);
-      g.moveTo(px + 3, py + 2); g.lineTo(px + 2, py - 4);
-      g.strokePath();
-    } else {
-      g.fillStyle(0x444a4a, 1);
-      g.fillEllipse(px, py, 6, 3);
-      g.fillStyle(0x6b7474, 1);
-      g.fillEllipse(px - 1, py - 1, 3, 1);
-    }
   }
 
   private playAnim(action: Action, direction: Direction): void {
