@@ -148,10 +148,11 @@ export class GameScene extends Phaser.Scene {
       for (let i = 0; i < anim.frames; i++) {
         frames.push({ key: this.charAtlas, frame: `${anim.key}_${String(i).padStart(2, "0")}` });
       }
+      const frameRate = anim.key.startsWith("idle") ? 3 : 8;
       this.anims.create({
         key,
         frames,
-        frameRate: 8,
+        frameRate,
         repeat: anim.loop ? -1 : 0,
       });
     }

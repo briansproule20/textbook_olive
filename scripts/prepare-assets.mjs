@@ -26,13 +26,13 @@ const CHAR_ROWS = 7;
 const CHAR_COLS = 4;
 
 const ANIMATIONS = [
-  { key: "idle_se", facing: "se", bob: false, loop: true },
-  { key: "walk_se", facing: "se", bob: true, loop: true },
-  { key: "walk_sw", facing: "sw", bob: true, loop: true },
-  { key: "walk_ne", facing: "ne", bob: true, loop: true },
-  { key: "walk_nw", facing: "nw", bob: true, loop: true },
-  { key: "attack_se", facing: "se", bob: false, loop: false },
-  { key: "attack_sw", facing: "sw", bob: false, loop: false },
+  { key: "idle_se", facing: "se", offsets: [0, -1, -2, -1], loop: true },
+  { key: "walk_se", facing: "se", offsets: [0, -6, 0, -6], loop: true },
+  { key: "walk_sw", facing: "sw", offsets: [0, -6, 0, -6], loop: true },
+  { key: "walk_ne", facing: "ne", offsets: [0, -6, 0, -6], loop: true },
+  { key: "walk_nw", facing: "nw", offsets: [0, -6, 0, -6], loop: true },
+  { key: "attack_se", facing: "se", offsets: [0, 0, 0, 0], loop: false },
+  { key: "attack_sw", facing: "sw", offsets: [0, 0, 0, 0], loop: false },
 ];
 
 // Quadrant -> facing mapping per spec.
@@ -359,7 +359,7 @@ async function prepareCharacter(charId, rawPath) {
     for (let c = 0; c < CHAR_COLS; c++) {
       const dx = c * CHAR_FRAME;
       const dy = r * CHAR_FRAME;
-      const yShift = anim.bob && (c === 1 || c === 3) ? -6 : 0;
+      const yShift = anim.offsets[c];
       // blit base into sheet at (dx, dy + yShift)
       blit(sheet, base, dx, dy + yShift);
       const name = `${anim.key}_${String(c).padStart(2, "0")}`;
