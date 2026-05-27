@@ -561,20 +561,19 @@ async function prepareCharacter(charId) {
     ne: await loadWalkStripRaw(nePath, `walks/${charId}/ne.png`),
   };
 
-  // PER-DIRECTION scale so SE and NE renders are the same VISUAL HEIGHT,
-  // regardless of how big the AI happened to draw the character in each
-  // source. Within a direction, all 4 frames share one scale so leg-lift
-  // variation stays correct. Both directions target CHAR_TARGET_HEIGHT,
-  // capped so we never upscale beyond CHAR_INNER.
-  const scaleForDir = (crops) => {
-    const maxH = Math.max(...crops.map((c) => c.height));
-    const targetH = Math.min(CHAR_TARGET_HEIGHT, CHAR_INNER);
-    return Math.min(targetH / maxH, CHAR_INNER / Math.max(...crops.map((c) => Math.max(c.width, c.height))));
-  };
+  // One global scale per character normalizing the character's CANONICAL
+  // BOUNDING BOX (max of width/height across ALL frames in both directions)
+  // to CHAR_TARGET_HEIGHT. This makes character-vs-character sizes comparable:
+  // a chunky wide penguin fits the same 200x200 box as a tall slender dog,
+  // and within a character SE and NE use the same scale so there is no
+  // size jump when the player turns.
+  const allCrops = [...rawCrops.se, ...rawCrops.ne];
+  const globalMaxDim = Math.max(...allCrops.map((c) => Math.max(c.width, c.height)));
+  const scale = Math.min(CHAR_TARGET_HEIGHT / globalMaxDim, 1);
 
   const strips = {
-    se: bakeCellsAtScale(rawCrops.se, scaleForDir(rawCrops.se)),
-    ne: bakeCellsAtScale(rawCrops.ne, scaleForDir(rawCrops.ne)),
+    se: bakeCellsAtScale(rawCrops.se, scale),
+    ne: bakeCellsAtScale(rawCrops.ne, scale),
   };
 
   const sheetW = CHAR_COLS * CHAR_FRAME;
