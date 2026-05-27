@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import BuildMenu from "./BuildMenu";
 import Hud from "./Hud";
 import InventoryModal from "./InventoryModal";
 import MainMenuModal from "./MainMenuModal";
@@ -58,6 +59,7 @@ export default function GameCanvas() {
       <Hud />
       <ResourceHud />
       <MiniMap />
+      <BuildMenu />
       <InventoryModal />
       <MainMenuModal />
     </>

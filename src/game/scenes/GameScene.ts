@@ -29,6 +29,19 @@ import {
   listAllIronTiles,
 } from "../world/iron";
 import { NPCS, isNpcTile, npcAt, type NpcSpec } from "../world/npcs";
+import {
+  BUILDING_TYPES,
+  buildingAt,
+  buildingType,
+  getBuildingTiles,
+  getPlacedBuildings,
+  isTileOccupiedByBuilding,
+  placeBuilding,
+  subscribePlacedBuildings,
+  type PlacedBuilding,
+} from "../world/buildings";
+import { itemCount, removeItem } from "../saves/saveGame";
+import { isInRockBiome } from "../world/biomes";
 import { addItem } from "../saves/saveGame";
 import { emitHarvest } from "../events";
 import {
@@ -88,6 +101,10 @@ export class GameScene extends Phaser.Scene {
   private treeImages = new Map<string, Phaser.GameObjects.Image>();
   private stoneImages = new Map<string, Phaser.GameObjects.Image>();
   private ironImages = new Map<string, Phaser.GameObjects.Image>();
+  private buildingImages = new Map<string, Phaser.GameObjects.Image>();
+  private placementGhost: Phaser.GameObjects.Image | null = null;
+  private placementBuildingId: string | null = null;
+  private unsubscribeBuildings: (() => void) | null = null;
   private npcs: { spec: NpcSpec; sprite: Phaser.GameObjects.Sprite; nameLabel: Phaser.GameObjects.Text; bubble: Phaser.GameObjects.Text; bubbleHideAt: number }[] = [];
 
   constructor() {
@@ -109,6 +126,9 @@ export class GameScene extends Phaser.Scene {
     this.load.image("tree", "/sprites/objects/tree.png");
     this.load.image("stone", "/sprites/objects/stone.png");
     this.load.image("iron", "/sprites/objects/iron.png");
+    for (const bt of BUILDING_TYPES) {
+      this.load.image(`building-${bt.id}`, bt.spritePath);
+    }
     // Each NPC needs its own character atlas. De-dupe in case multiple NPCs
     // share a sprite.
     const npcAtlases = new Set(NPCS.map((n) => n.charId));
@@ -130,6 +150,11 @@ export class GameScene extends Phaser.Scene {
     this.placeStones();
     this.placeIron();
     this.spawnNpcs();
+    this.syncBuildings();
+    this.unsubscribeBuildings = subscribePlacedBuildings(() => this.syncBuildings());
+    this.events.once("shutdown", () => {
+      if (this.unsubscribeBuildings) this.unsubscribeBuildings();
+    });
 
     this.localName = loadOrCreateLocalName(CHARACTER_LABELS[this.charId]);
 
@@ -166,6 +191,12 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      // Building placement intercepts clicks.
+      const placingId = (window as unknown as { __placingBuilding?: string | null }).__placingBuilding ?? null;
+      if (placingId) {
+        const handled = this.tryPlaceBuildingAtScreen(world.x, world.y, placingId);
+        if (handled) return;
+      }
       this.clickTarget = { x: world.x, y: world.y };
     });
 
@@ -250,9 +281,9 @@ export class GameScene extends Phaser.Scene {
     const delta = dt / 1000;
     let ix = 0;
     let iy = 0;
-    // Suppress movement + harvest input while UI overlays (inventory, menu) are open.
-    const w = window as unknown as { __inventoryOpen?: boolean; __menuOpen?: boolean };
-    const uiOpen = w.__inventoryOpen === true || w.__menuOpen === true;
+    // Suppress movement + harvest input while UI overlays (inventory, menu, build) are open.
+    const w = window as unknown as { __inventoryOpen?: boolean; __menuOpen?: boolean; __buildMenuOpen?: boolean };
+    const uiOpen = w.__inventoryOpen === true || w.__menuOpen === true || w.__buildMenuOpen === true;
     if (!uiOpen) {
       if (this.cursors.up.isDown || this.wasd.W.isDown) iy -= 1;
       if (this.cursors.down.isDown || this.wasd.S.isDown) iy += 1;
@@ -293,6 +324,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshStoneVisuals();
     this.refreshIronVisuals();
     this.updateNpcBubbles();
+    this.updatePlacementGhost();
 
     if (moving && !this.attacking) {
       this.facing = directionFromVector(moveVec, this.facing);
@@ -511,6 +543,15 @@ export class GameScene extends Phaser.Scene {
         return;
       }
     }
+    // Buildings second — SPACE near a building runs its recipe if inputs are
+    // available; emits a harvest event with the produced item.
+    for (const { ix, iy } of candidates) {
+      const b = buildingAt(ix, iy);
+      if (b) {
+        this.tryRunBuilding(b);
+        return;
+      }
+    }
     for (const { ix, iy } of candidates) {
       if (!hasTreeAt(ix, iy)) continue;
       const wood = damageTree(ix, iy);
@@ -566,7 +607,13 @@ export class GameScene extends Phaser.Scene {
       for (let dy = -1; dy <= 1; dy++) {
         const tx = baseX + dx;
         const ty = baseY + dy;
-        if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty) && !hasIronAt(tx, ty) && !isNpcTile(tx, ty)) continue;
+        if (
+          !hasTreeAt(tx, ty) &&
+          !hasStoneAt(tx, ty) &&
+          !hasIronAt(tx, ty) &&
+          !isNpcTile(tx, ty) &&
+          !isTileOccupiedByBuilding(tx, ty)
+        ) continue;
         const ex = iso.x - tx;
         const ey = iso.y - ty;
         if (ex * ex + ey * ey < GameScene.COLLISION_RADIUS_SQ) return true;
@@ -700,6 +747,145 @@ export class GameScene extends Phaser.Scene {
       }
     }
   }
+
+  // ---------- Buildings ----------
+
+  // Add an image for every currently-placed building. Called on create() and
+  // every time the placed list changes.
+  private syncBuildings(): void {
+    const placed = getPlacedBuildings();
+    const placedKeys = new Set(placed.map((b) => b.uid));
+    // Remove images for buildings that no longer exist.
+    for (const [uid, img] of this.buildingImages.entries()) {
+      if (!placedKeys.has(uid)) {
+        img.destroy();
+        this.buildingImages.delete(uid);
+      }
+    }
+    // Add images for newly placed buildings.
+    for (const b of placed) {
+      if (this.buildingImages.has(b.uid)) continue;
+      const t = buildingType(b.typeId);
+      if (!t) continue;
+      const texKey = `building-${t.id}`;
+      if (!this.textures.exists(texKey)) continue;
+      // Anchor at the iso center of the building's footprint: the visual
+      // bottom of the iso diamond lines up with the front-most tile.
+      const centerIx = b.ix + (t.w - 1) / 2;
+      const centerIy = b.iy + (t.h - 1) / 2;
+      const { x, y } = isoToScreen(centerIx, centerIy);
+      // The visual bottom of the iso diamond is half a tile-height below the
+      // center: +TILE_HEIGHT/2 in screen pixels times (max footprint dim - 1).
+      const anchorY = y + ((Math.max(t.w, t.h) - 1) * TILE_HEIGHT) / 2;
+      const img = this.add.image(x, anchorY, texKey);
+      img.setOrigin(0.5, 1);
+      img.setScale(t.spriteScale);
+      img.setDepth(worldObjectDepth(anchorY));
+      this.buildingImages.set(b.uid, img);
+    }
+  }
+
+  // Map a screen point (already in world coords) to its iso tile and try to
+  // place the selected building with that tile as the anchor.
+  private tryPlaceBuildingAtScreen(worldX: number, worldY: number, typeId: string): boolean {
+    const t = buildingType(typeId);
+    if (!t) return false;
+    const iso = screenToIso(worldX, worldY);
+    const ix = Math.round(iso.x);
+    const iy = Math.round(iso.y);
+    if (!this.isFootprintFree(ix, iy, t.w, t.h)) return false;
+    placeBuilding(typeId, ix, iy);
+    // Clear the placement flag so React UI exits placement mode.
+    (window as unknown as { __placingBuilding?: string | null }).__placingBuilding = null;
+    this.placementBuildingId = null;
+    this.clearPlacementGhost();
+    return true;
+  }
+
+  // Footprint validation: every tile must be in-bounds, not in the spawn rock
+  // block, not occupied by a tree/stone/iron/NPC/building, and not in a rock
+  // biome (biomes are nature; keep buildings on regular terrain).
+  private isFootprintFree(ix: number, iy: number, w: number, h: number): boolean {
+    for (let dx = 0; dx < w; dx++) {
+      for (let dy = 0; dy < h; dy++) {
+        const tx = ix + dx;
+        const ty = iy + dy;
+        if (Math.abs(tx) > GRID_RADIUS || Math.abs(ty) > GRID_RADIUS) return false;
+        if (hasTreeAt(tx, ty)) return false;
+        if (hasStoneAt(tx, ty)) return false;
+        if (hasIronAt(tx, ty)) return false;
+        if (isNpcTile(tx, ty)) return false;
+        if (isTileOccupiedByBuilding(tx, ty)) return false;
+        if (isInRockBiome(tx, ty)) return false;
+      }
+    }
+    return true;
+  }
+
+  // Show / move / hide the ghost image during placement.
+  private updatePlacementGhost(): void {
+    const placingId = (window as unknown as { __placingBuilding?: string | null }).__placingBuilding ?? null;
+    if (!placingId) {
+      this.placementBuildingId = null;
+      this.clearPlacementGhost();
+      return;
+    }
+    const t = buildingType(placingId);
+    if (!t) return;
+    if (this.placementBuildingId !== placingId) {
+      this.clearPlacementGhost();
+      this.placementBuildingId = placingId;
+      const texKey = `building-${t.id}`;
+      if (!this.textures.exists(texKey)) return;
+      const ghost = this.add.image(0, 0, texKey);
+      ghost.setOrigin(0.5, 1);
+      ghost.setScale(t.spriteScale);
+      ghost.setAlpha(0.55);
+      this.placementGhost = ghost;
+    }
+    if (!this.placementGhost) return;
+    const pointer = this.input.activePointer;
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const iso = screenToIso(world.x, world.y);
+    const ix = Math.round(iso.x);
+    const iy = Math.round(iso.y);
+    const centerIx = ix + (t.w - 1) / 2;
+    const centerIy = iy + (t.h - 1) / 2;
+    const { x, y } = isoToScreen(centerIx, centerIy);
+    const anchorY = y + ((Math.max(t.w, t.h) - 1) * TILE_HEIGHT) / 2;
+    this.placementGhost.setPosition(x, anchorY);
+    this.placementGhost.setDepth(worldObjectDepth(anchorY) + 50);
+    const valid = this.isFootprintFree(ix, iy, t.w, t.h);
+    this.placementGhost.setTint(valid ? 0xffffff : 0xff7676);
+  }
+
+  private clearPlacementGhost(): void {
+    if (this.placementGhost) {
+      this.placementGhost.destroy();
+      this.placementGhost = null;
+    }
+  }
+
+  // Inventory check + consume + produce.
+  private tryRunBuilding(b: PlacedBuilding): void {
+    const t = buildingType(b.typeId);
+    if (!t) return;
+    // Need every input first — bail without partial consumption.
+    for (const inp of t.inputs) {
+      if (itemCount(inp.itemId) < inp.qty) return;
+    }
+    for (const inp of t.inputs) {
+      removeItem(inp.itemId, inp.qty);
+    }
+    for (const out of t.outputs) {
+      addItem({ id: out.itemId, label: capitalize(out.itemId), qty: out.qty });
+      emitHarvest({ itemId: out.itemId, qty: out.qty, screenX: this.player.x, screenY: this.player.y });
+    }
+  }
+}
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
 void TREE_MAX_HP;

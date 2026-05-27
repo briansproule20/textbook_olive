@@ -750,20 +750,19 @@ async function main() {
     charResults[id] = res;
   }
 
-  // Static object sprites (trees, etc.) — copy raw assets directly to public/.
-  // No frame/animation processing; the game loads them as plain Image textures.
-  const objectsRawDir = path.join(RAW_DIR, "objects");
-  const objectsOutDir = path.join(OUT_ROOT, "objects");
-  if (await exists(objectsRawDir)) {
-    await fs.mkdir(objectsOutDir, { recursive: true });
-    const objectFiles = await fs.readdir(objectsRawDir);
-    for (const fname of objectFiles) {
+  // Static object sprites (trees, stones, iron, building art) — copy raw
+  // assets directly to public/ with the bg-mask cleanup pass so GPT-Image-2's
+  // near-white halos are stripped to transparent. No frame/animation handling.
+  for (const subdir of ["objects", "buildings"]) {
+    const rawDir = path.join(RAW_DIR, subdir);
+    const outDir = path.join(OUT_ROOT, subdir);
+    if (!(await exists(rawDir))) continue;
+    await fs.mkdir(outDir, { recursive: true });
+    const files = await fs.readdir(rawDir);
+    for (const fname of files) {
       if (!fname.toLowerCase().endsWith(".png")) continue;
-      const srcPath = path.join(objectsRawDir, fname);
-      const destPath = path.join(objectsOutDir, fname);
-      // Reuse the character bg-mask pass to strip near-white / faintly-alpha
-      // backgrounds that GPT-Image-2 sometimes leaves behind. This also clears
-      // soft anti-aliased rim pixels so the object reads as a clean cutout.
+      const srcPath = path.join(rawDir, fname);
+      const destPath = path.join(outDir, fname);
       const srcPng = await readPng(srcPath);
       const mask = buildBgMask(srcPng);
       const cleaned = emptyPng(srcPng.width, srcPng.height);
@@ -778,7 +777,7 @@ async function main() {
         }
       }
       await writePng(cleaned, destPath);
-      console.log(`[prep] object: ${path.relative(ROOT, destPath)} (bg-cleaned)`);
+      console.log(`[prep] ${subdir}: ${path.relative(ROOT, destPath)} (bg-cleaned)`);
     }
   }
 

@@ -143,6 +143,20 @@ export function itemCount(id: string): number {
   return it ? it.qty ?? 1 : 0;
 }
 
+// Subtract qty of item id from the inventory. Returns true if there was
+// enough to remove the requested amount (and the change was applied), false
+// otherwise (inventory left unchanged).
+export function removeItem(id: string, qty: number): boolean {
+  const slot = inventory.find((i) => i.id === id);
+  if (!slot || (slot.qty ?? 1) < qty) return false;
+  slot.qty = (slot.qty ?? 1) - qty;
+  if ((slot.qty ?? 0) <= 0) {
+    inventory.splice(inventory.indexOf(slot), 1);
+  }
+  for (const cb of listeners) cb(getInventory());
+  return true;
+}
+
 export function subscribeInventory(cb: (items: InventoryItem[]) => void): () => void {
   listeners.add(cb);
   return () => {
