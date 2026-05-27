@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import {
   isoToScreen,
-  screenToIso,
   isoInputToScreenVector,
   worldObjectDepth,
   BASELINE_OFFSET,
@@ -259,8 +258,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (moving && !this.attacking) {
-      const inputIso = ix !== 0 || iy !== 0 ? { x: ix, y: iy } : screenToIso(moveVec.x, moveVec.y);
-      this.facing = directionFromVector(inputIso, this.facing);
+      this.facing = directionFromVector(moveVec, this.facing);
       this.player.x += moveVec.x * MOVE_SPEED * delta;
       this.player.y += moveVec.y * MOVE_SPEED * delta;
       if (this.action !== "walk") {

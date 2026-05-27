@@ -75,19 +75,24 @@ export function atlasAnimationKey(action: Action, direction: Direction): Resolve
   return { key: animationKey("walk", baseDir), flipX: flip };
 }
 
+// Facing labels (se/sw/ne/nw) refer to SCREEN diamond corners, so the input
+// here MUST be the screen-space movement vector (e.g. moveVec applied to
+// player.x and player.y), not the iso world vector. Using iso here causes
+// the sprite to mis-face on certain inputs because iso +iy is actually
+// screen-SW, not screen-south.
 export function directionFromVector(
-  vector: { x: number; y: number },
+  screenVector: { x: number; y: number },
   previous: Direction
 ): Direction {
   const DEAD = 0.05;
-  const absX = Math.abs(vector.x);
-  const absY = Math.abs(vector.y);
+  const absX = Math.abs(screenVector.x);
+  const absY = Math.abs(screenVector.y);
 
   const prevIsEast = previous === "se" || previous === "ne";
   const prevIsSouth = previous === "se" || previous === "sw";
 
-  const east = absX < DEAD ? prevIsEast : vector.x > 0;
-  const south = absY < DEAD ? prevIsSouth : vector.y > 0;
+  const east = absX < DEAD ? prevIsEast : screenVector.x > 0;
+  const south = absY < DEAD ? prevIsSouth : screenVector.y > 0;
 
   if (south && east) return "se";
   if (south && !east) return "sw";
