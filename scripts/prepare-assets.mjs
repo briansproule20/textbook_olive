@@ -348,6 +348,44 @@ function clipToDiamond(img) {
   }
 }
 
+// AI-painted tiles include cel-shading: a darker rim along the lower diamond
+// edges that creates a "raised bevel" look when many tiles are tiled together
+// across a map. This pass equalizes brightness — opaque pixels darker than
+// ~85% of the interior median get scaled up toward median brightness while
+// keeping hue, so the tile reads as a fully flat ground sticker.
+function flattenTileLighting(img) {
+  const w = img.width;
+  const h = img.height;
+  const interiorLums = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (img.data[i + 3] < 128) continue;
+      const dx = Math.abs(x + 0.5 - w / 2) / (w / 2);
+      const dy = Math.abs(y + 0.5 - h / 2) / (h / 2);
+      if (dx + dy > 0.6) continue;
+      interiorLums.push((img.data[i] + img.data[i + 1] + img.data[i + 2]) / 3);
+    }
+  }
+  if (interiorLums.length === 0) return;
+  interiorLums.sort((a, b) => a - b);
+  const median = interiorLums[Math.floor(interiorLums.length / 2)];
+  const targetMin = median * 0.92;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (img.data[i + 3] < 128) continue;
+      const lum = (img.data[i] + img.data[i + 1] + img.data[i + 2]) / 3;
+      if (lum >= targetMin) continue;
+      const scale = targetMin / Math.max(1, lum);
+      img.data[i] = Math.min(255, Math.round(img.data[i] * scale));
+      img.data[i + 1] = Math.min(255, Math.round(img.data[i + 1] * scale));
+      img.data[i + 2] = Math.min(255, Math.round(img.data[i + 2] * scale));
+    }
+  }
+}
+
 function flipHorizontal(src) {
   const out = new PNG({ width: src.width, height: src.height });
   for (let y = 0; y < src.height; y++) {
@@ -422,6 +460,7 @@ async function prepareTiles() {
     const cropped = extractCrop(src, mask, q.qx, q.qy, bbox);
     const scaled = downscaleExact(cropped, TILE_W, TILE_H);
     clipToDiamond(scaled);
+    flattenTileLighting(scaled);
     const cellX = idx * TILE_W;
     blit(sheet, scaled, cellX, 0);
     frames[q.name] = {
