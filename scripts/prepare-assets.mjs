@@ -45,7 +45,7 @@ const QUADRANT_FACING = {
 };
 
 const BG_THRESHOLD = 232;
-const BG_EDGE_SOFT = 200;
+const BG_SOFT_PASSES = [215, 200, 185, 170, 155, 140];
 
 async function exists(p) {
   try {
@@ -96,24 +96,30 @@ function buildBgMask(src) {
     push(x, y + 1);
     push(x, y - 1);
   }
-  // soft edge pass: pixels adjacent to bg that are also near-white get marked,
-  // smoothing rim anti-aliasing without eating interior highlights.
-  const soft = new Uint8Array(mask);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = y * w + x;
-      if (mask[idx]) continue;
-      const i = idx * 4;
-      if (!looksLikeBg(src.data[i], src.data[i + 1], src.data[i + 2], src.data[i + 3], BG_EDGE_SOFT)) continue;
-      const neighbors =
-        (x > 0 && mask[idx - 1]) ||
-        (x < w - 1 && mask[idx + 1]) ||
-        (y > 0 && mask[idx - w]) ||
-        (y < h - 1 && mask[idx + w]);
-      if (neighbors) soft[idx] = 1;
+  // Iterative soft expansion: each pass marks pixels adjacent to current bg
+  // that pass a progressively lower lightness threshold. This eats anti-aliased
+  // rims and soft dropshadows without consuming high-contrast interior detail
+  // (eye whites, blaze, highlights) that isn't connected to the bg gradient.
+  let current = mask;
+  for (const threshold of BG_SOFT_PASSES) {
+    const next = new Uint8Array(current);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        if (current[idx]) continue;
+        const i = idx * 4;
+        if (!looksLikeBg(src.data[i], src.data[i + 1], src.data[i + 2], src.data[i + 3], threshold)) continue;
+        const neighbors =
+          (x > 0 && current[idx - 1]) ||
+          (x < w - 1 && current[idx + 1]) ||
+          (y > 0 && current[idx - w]) ||
+          (y < h - 1 && current[idx + w]);
+        if (neighbors) next[idx] = 1;
+      }
     }
+    current = next;
   }
-  return soft;
+  return current;
 }
 
 function getPx(src, x, y) {
