@@ -2,6 +2,7 @@
 // Stones use a different hash seed so they don't overlap tree positions.
 
 import { isInSpawnClearZone, isSpawnTile, tileAt, GRID_RADIUS } from "./tiles";
+import { isInRockBiome } from "./biomes";
 import { hasTreeAt } from "./trees";
 
 export const STONE_DENSITY_PCT = 3; // slightly rarer than trees
@@ -23,7 +24,8 @@ export function hasStoneAt(ix: number, iy: number): boolean {
   if (Math.abs(ix) > GRID_RADIUS || Math.abs(iy) > GRID_RADIUS) return false;
   if (isSpawnTile(ix, iy)) return false;
   if (isInSpawnClearZone(ix, iy)) return false;
-  if (hasTreeAt(ix, iy)) return false; // never stack stone on top of a tree
+  if (isInRockBiome(ix, iy)) return false; // biomes belong to iron, not stone
+  if (hasTreeAt(ix, iy)) return false;
   const t = tileAt(ix, iy);
   if (t !== "grass" && t !== "grass2" && t !== "dirt") return false;
   return tileHash(ix, iy) % 100 < STONE_DENSITY_PCT;

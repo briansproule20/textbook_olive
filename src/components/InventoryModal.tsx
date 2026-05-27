@@ -150,6 +150,7 @@ export default function InventoryModal() {
 const ITEM_ICONS: Record<string, string> = {
   wood: "/sprites/objects/tree.png",
   stone: "/sprites/objects/stone.png",
+  iron: "/sprites/objects/iron.png",
 };
 
 function Slot({ item }: { item: InventoryItem | null }) {

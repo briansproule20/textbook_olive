@@ -23,6 +23,7 @@ function readPlayerName(): string {
 
 const LOG_STROKE = "#c9a063";
 const STONE_STROKE = "#9aa3ab";
+const IRON_STROKE = "#e08b3c";
 
 function LogIcon() {
   return (
@@ -46,6 +47,16 @@ function StoneIcon() {
   );
 }
 
+function IronIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={IRON_STROKE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 18 L2 12 L7 5 L17 5 L22 12 L20 18 L16 20 L8 20 Z" />
+      <path d="M7 9 L11 12 L9 16" />
+      <path d="M15 8 L17 11 L14 14" />
+    </svg>
+  );
+}
+
 interface Popup {
   id: number;
   text: string;
@@ -56,6 +67,7 @@ const POPUP_LIFETIME_MS = 1100;
 const PILLS: { id: string; label: string; icon: React.ReactNode }[] = [
   { id: "wood", label: "Wood", icon: <LogIcon /> },
   { id: "stone", label: "Stone", icon: <StoneIcon /> },
+  { id: "iron", label: "Iron", icon: <IronIcon /> },
 ];
 
 export default function ResourceHud() {
@@ -81,7 +93,7 @@ export default function ResourceHud() {
   useEffect(() => {
     let nextId = 1;
     const off = onHarvest((e) => {
-      const labelMap: Record<string, string> = { wood: "wood", stone: "stone" };
+      const labelMap: Record<string, string> = { wood: "wood", stone: "stone", iron: "iron" };
       const name = labelMap[e.itemId] ?? e.itemId;
       const id = nextId++;
       setPopups((prev) => [...prev, { id, text: `+${e.qty} ${name}` }]);

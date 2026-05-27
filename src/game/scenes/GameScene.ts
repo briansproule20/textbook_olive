@@ -22,6 +22,12 @@ import {
   hasStoneAt,
   listAllStoneTiles,
 } from "../world/stones";
+import {
+  damageIron,
+  getIronState,
+  hasIronAt,
+  listAllIronTiles,
+} from "../world/iron";
 import { NPCS, isNpcTile, npcAt, type NpcSpec } from "../world/npcs";
 import { addItem } from "../saves/saveGame";
 import { emitHarvest } from "../events";
@@ -81,6 +87,7 @@ export class GameScene extends Phaser.Scene {
   private charAtlas = "character-cat";
   private treeImages = new Map<string, Phaser.GameObjects.Image>();
   private stoneImages = new Map<string, Phaser.GameObjects.Image>();
+  private ironImages = new Map<string, Phaser.GameObjects.Image>();
   private npcs: { spec: NpcSpec; sprite: Phaser.GameObjects.Sprite; nameLabel: Phaser.GameObjects.Text; bubble: Phaser.GameObjects.Text; bubbleHideAt: number }[] = [];
 
   constructor() {
@@ -101,6 +108,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.load.image("tree", "/sprites/objects/tree.png");
     this.load.image("stone", "/sprites/objects/stone.png");
+    this.load.image("iron", "/sprites/objects/iron.png");
     // Each NPC needs its own character atlas. De-dupe in case multiple NPCs
     // share a sprite.
     const npcAtlases = new Set(NPCS.map((n) => n.charId));
@@ -120,6 +128,7 @@ export class GameScene extends Phaser.Scene {
     this.drawTileGrid();
     this.placeTrees();
     this.placeStones();
+    this.placeIron();
     this.spawnNpcs();
 
     this.localName = loadOrCreateLocalName(CHARACTER_LABELS[this.charId]);
@@ -282,6 +291,7 @@ export class GameScene extends Phaser.Scene {
 
     this.refreshTreeVisuals();
     this.refreshStoneVisuals();
+    this.refreshIronVisuals();
     this.updateNpcBubbles();
 
     if (moving && !this.attacking) {
@@ -519,6 +529,15 @@ export class GameScene extends Phaser.Scene {
         return;
       }
     }
+    for (const { ix, iy } of candidates) {
+      if (!hasIronAt(ix, iy)) continue;
+      const iron = damageIron(ix, iy);
+      if (iron > 0) {
+        addItem({ id: "iron", label: "Iron", qty: iron });
+        emitHarvest({ itemId: "iron", qty: iron, screenX: this.player.x, screenY: this.player.y });
+        return;
+      }
+    }
   }
 
   // Omnidirectional circular collision in iso tile space. Trees and stones
@@ -547,7 +566,7 @@ export class GameScene extends Phaser.Scene {
       for (let dy = -1; dy <= 1; dy++) {
         const tx = baseX + dx;
         const ty = baseY + dy;
-        if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty) && !isNpcTile(tx, ty)) continue;
+        if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty) && !hasIronAt(tx, ty) && !isNpcTile(tx, ty)) continue;
         const ex = iso.x - tx;
         const ey = iso.y - ty;
         if (ex * ex + ey * ey < GameScene.COLLISION_RADIUS_SQ) return true;
@@ -566,6 +585,31 @@ export class GameScene extends Phaser.Scene {
       img.setScale(0.22);
       img.setDepth(worldObjectDepth(y));
       this.stoneImages.set(`${ix},${iy}`, img);
+    }
+  }
+
+  private placeIron(): void {
+    if (!this.textures.exists("iron")) return;
+    const irons = listAllIronTiles();
+    for (const { ix, iy } of irons) {
+      const { x, y } = isoToScreen(ix, iy);
+      const img = this.add.image(x, y, "iron");
+      img.setOrigin(0.5, 0.85);
+      img.setScale(0.25);
+      img.setDepth(worldObjectDepth(y));
+      this.ironImages.set(`${ix},${iy}`, img);
+    }
+  }
+
+  private refreshIronVisuals(): void {
+    for (const [key, img] of this.ironImages.entries()) {
+      const [ixStr, iyStr] = key.split(",");
+      const ix = Number(ixStr);
+      const iy = Number(iyStr);
+      const s = getIronState(ix, iy);
+      const depleted = s.hp <= 0;
+      const targetAlpha = depleted ? 0.45 : 1;
+      if (img.alpha !== targetAlpha) img.setAlpha(targetAlpha);
     }
   }
 
