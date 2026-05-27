@@ -269,8 +269,14 @@ export class GameScene extends Phaser.Scene {
 
     if (moving && !this.attacking) {
       this.facing = directionFromVector(moveVec, this.facing);
-      this.player.x += moveVec.x * MOVE_SPEED * delta;
-      this.player.y += moveVec.y * MOVE_SPEED * delta;
+      const dx = moveVec.x * MOVE_SPEED * delta;
+      const dy = moveVec.y * MOVE_SPEED * delta;
+      // Axis-separated collision so the player can slide along trees/stones
+      // instead of getting fully stuck when grazing one diagonally.
+      const newX = this.player.x + dx;
+      if (!this.tileBlockedAt(newX, this.player.y)) this.player.x = newX;
+      const newY = this.player.y + dy;
+      if (!this.tileBlockedAt(this.player.x, newY)) this.player.y = newY;
       if (this.action !== "walk") {
         this.action = "walk";
         this.playAnim("walk", this.facing);
@@ -433,23 +439,51 @@ export class GameScene extends Phaser.Scene {
     return { ix: ix + dx, iy: iy + dy };
   }
 
+  // Tiles the player can interact with on space: current tile + 4 cardinal
+  // neighbors. The closest live tree/stone wins.
+  private nearbyTiles(): { ix: number; iy: number }[] {
+    const footY = this.player.y - BASELINE_OFFSET * CHAR_SCALE;
+    const iso = screenToIso(this.player.x, footY);
+    const cx = Math.round(iso.x);
+    const cy = Math.round(iso.y);
+    return [
+      { ix: cx, iy: cy },
+      { ix: cx + 1, iy: cy },
+      { ix: cx - 1, iy: cy },
+      { ix: cx, iy: cy + 1 },
+      { ix: cx, iy: cy - 1 },
+    ];
+  }
+
   private tryHarvestTree(): void {
-    const { ix, iy } = this.playerFacingTile();
-    if (hasTreeAt(ix, iy)) {
+    const candidates = this.nearbyTiles();
+    for (const { ix, iy } of candidates) {
+      if (!hasTreeAt(ix, iy)) continue;
       const wood = damageTree(ix, iy);
       if (wood > 0) {
         addItem({ id: "wood", label: "Wood", qty: wood });
         emitHarvest({ itemId: "wood", qty: wood, screenX: this.player.x, screenY: this.player.y });
+        return;
       }
-      return;
     }
-    if (hasStoneAt(ix, iy)) {
+    for (const { ix, iy } of candidates) {
+      if (!hasStoneAt(ix, iy)) continue;
       const stone = damageStone(ix, iy);
       if (stone > 0) {
         addItem({ id: "stone", label: "Stone", qty: stone });
         emitHarvest({ itemId: "stone", qty: stone, screenX: this.player.x, screenY: this.player.y });
+        return;
       }
     }
+  }
+
+  // Trees and stones block movement (even when depleted — the visual stays).
+  private tileBlockedAt(screenX: number, screenY: number): boolean {
+    const footY = screenY - BASELINE_OFFSET * CHAR_SCALE;
+    const iso = screenToIso(screenX, footY);
+    const ix = Math.round(iso.x);
+    const iy = Math.round(iso.y);
+    return hasTreeAt(ix, iy) || hasStoneAt(ix, iy);
   }
 
   private placeStones(): void {
