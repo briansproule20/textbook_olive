@@ -8,6 +8,7 @@ import {
   saveSelectedCharacter,
   type CharacterId,
 } from "@/game/sprites/characterTextures";
+import Hud from "./Hud";
 
 export default function GameCanvas() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -42,6 +43,7 @@ export default function GameCanvas() {
   return (
     <>
       <div id="game-root" ref={rootRef} />
+      <Hud />
       <div
         style={{
           position: "fixed",

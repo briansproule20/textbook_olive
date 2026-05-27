@@ -241,14 +241,26 @@ export class GameScene extends Phaser.Scene {
     this.playerLabel.setPosition(this.player.x, this.player.y - this.player.displayHeight);
     this.playerLabel.setDepth(this.player.depth + 1);
 
+    const speed = moving ? MOVE_SPEED : 0;
     this.mp.sendUpdate({
       action: this.action,
       facing: this.facing,
       name: this.localName,
-      speed: moving ? MOVE_SPEED : 0,
+      speed,
       x: this.player.x,
       y: this.player.y,
     });
+
+    if (typeof window !== "undefined") {
+      (window as unknown as { __gameStatus?: object }).__gameStatus = {
+        action: this.action.toUpperCase(),
+        facing: this.facing.toUpperCase(),
+        speed: Math.round(speed),
+        x: Math.round(this.player.x),
+        y: Math.round(this.player.y),
+        fps: Math.round(this.game.loop.actualFps),
+      };
+    }
 
     for (const rp of this.remotes.values()) {
       const lerp = 0.2;
