@@ -3,6 +3,23 @@
 import { useEffect, useState } from "react";
 import { itemCount, subscribeInventory } from "@/game/saves/saveGame";
 import { onHarvest } from "@/game/events";
+import { CHARACTER_LABELS, loadSelectedCharacter } from "@/game/sprites/characterTextures";
+
+function readPlayerName(): string {
+  try {
+    const charId = loadSelectedCharacter();
+    const label = CHARACTER_LABELS[charId];
+    const raw = window.localStorage.getItem("poncho.nameParts");
+    if (!raw) return label;
+    const parsed = JSON.parse(raw) as { adj?: string; num?: number; custom?: string };
+    const adj = typeof parsed.adj === "string" ? parsed.adj : "";
+    const middle = parsed.custom && parsed.custom.length > 0 ? parsed.custom : label;
+    const num = typeof parsed.num === "number" ? parsed.num : "";
+    return `${adj} ${middle} ${num}`.trim();
+  } catch {
+    return "Player";
+  }
+}
 
 const LOG_STROKE = "#c9a063";
 const STONE_STROKE = "#9aa3ab";
@@ -44,6 +61,11 @@ const PILLS: { id: string; label: string; icon: React.ReactNode }[] = [
 export default function ResourceHud() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [popups, setPopups] = useState<Popup[]>([]);
+  const [playerName, setPlayerName] = useState<string>("");
+
+  useEffect(() => {
+    setPlayerName(readPlayerName());
+  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -85,6 +107,27 @@ export default function ResourceHud() {
           pointerEvents: "none",
         }}
       >
+        {playerName && (
+          <div
+            style={{
+              padding: "8px 14px",
+              background: "rgba(20, 30, 22, 0.92)",
+              color: "#fff",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: 0.3,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+              maxWidth: 240,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={playerName}
+          >
+            {playerName}
+          </div>
+        )}
         {PILLS.map((p) => (
           <div
             key={p.id}
