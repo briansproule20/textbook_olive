@@ -261,6 +261,31 @@ function downscaleExact(src, dw, dh) {
   return out;
 }
 
+// Force a tile image to a mathematically exact 2:1 diamond shape. Pixels
+// outside the diamond inscribed in the rectangle are set to fully transparent
+// so adjacent tiles tile pixel-perfectly without sub-pixel seams or overlap.
+function clipToDiamond(img) {
+  const w = img.width;
+  const h = img.height;
+  const cx = (w - 1) / 2;
+  const cy = (h - 1) / 2;
+  const halfW = w / 2;
+  const halfH = h / 2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = Math.abs(x - cx) / halfW;
+      const dy = Math.abs(y - cy) / halfH;
+      if (dx + dy > 1) {
+        const i = (y * w + x) * 4;
+        img.data[i] = 0;
+        img.data[i + 1] = 0;
+        img.data[i + 2] = 0;
+        img.data[i + 3] = 0;
+      }
+    }
+  }
+}
+
 function flipHorizontal(src) {
   const out = new PNG({ width: src.width, height: src.height });
   for (let y = 0; y < src.height; y++) {
@@ -334,6 +359,7 @@ async function prepareTiles() {
     if (!bbox) throw new Error(`empty quadrant for tile ${q.name}`);
     const cropped = extractCrop(src, mask, q.qx, q.qy, bbox);
     const scaled = downscaleExact(cropped, TILE_W, TILE_H);
+    clipToDiamond(scaled);
     const cellX = idx * TILE_W;
     blit(sheet, scaled, cellX, 0);
     frames[q.name] = {
