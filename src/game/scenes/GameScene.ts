@@ -478,12 +478,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Trees and stones block movement (even when depleted — the visual stays).
+  // The check is "tight": we round the foot iso to a tile, then reject if the
+  // foot is within COLLISION_PAD of the obstacle tile's center. This gives a
+  // small buffer so the sprite body never visually overlaps the obstacle.
   private tileBlockedAt(screenX: number, screenY: number): boolean {
+    const COLLISION_PAD = 0.7; // ~30% padding around obstacle tile centers
     const footY = screenY - BASELINE_OFFSET * CHAR_SCALE;
     const iso = screenToIso(screenX, footY);
-    const ix = Math.round(iso.x);
-    const iy = Math.round(iso.y);
-    return hasTreeAt(ix, iy) || hasStoneAt(ix, iy);
+    // Check the 9 candidate obstacle tiles around the foot (3x3 neighborhood)
+    // and reject if any have an obstacle AND the foot is within the padded
+    // square around that tile's center.
+    const baseX = Math.floor(iso.x);
+    const baseY = Math.floor(iso.y);
+    for (let dx = 0; dx <= 1; dx++) {
+      for (let dy = 0; dy <= 1; dy++) {
+        const tx = baseX + dx;
+        const ty = baseY + dy;
+        if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty)) continue;
+        if (Math.abs(iso.x - tx) < COLLISION_PAD && Math.abs(iso.y - ty) < COLLISION_PAD) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private placeStones(): void {
