@@ -98,6 +98,12 @@ const CHAR_LABEL: Record<CharacterId, string> = {
   cat: "Cat",
   aussie: "Aussie",
   penguin: "Penguin",
+  "black-lab": "Black Lab",
+  "yellow-lab": "Yellow Lab",
+  "brown-lab": "Brown Lab",
+  pug: "Pug",
+  "brown-tabby": "Brown Tabby",
+  "orange-tabby": "Orange Tabby",
 };
 
 export default function Hud() {
@@ -159,10 +165,13 @@ export default function Hud() {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
           gap: 6,
           padding: 6,
+          maxWidth: "min(560px, calc(100vw - 24px))",
           background: "rgba(20, 30, 22, 0.85)",
-          borderRadius: 999,
+          borderRadius: 14,
           boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
         }}
       >
