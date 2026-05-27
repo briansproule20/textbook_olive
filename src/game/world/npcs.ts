@@ -18,9 +18,23 @@ export const NPCS: NpcSpec[] = [
     id: "geno",
     name: "Geno",
     charId: "penguin",
-    // Five tiles southeast of the spawn block (which anchors at 0,0..1,1).
+    // Five tiles east of the spawn block.
     ix: 5,
-    iy: 5,
+    iy: 0,
     dialogue: "Hello",
   },
 ];
+
+// All NPC iso positions, exposed for the collision check. Keyed by "ix,iy".
+export const NPC_TILES = new Set(NPCS.map((n) => `${n.ix},${n.iy}`));
+
+export function isNpcTile(ix: number, iy: number): boolean {
+  return NPC_TILES.has(`${ix},${iy}`);
+}
+
+export function npcAt(ix: number, iy: number): NpcSpec | null {
+  for (const n of NPCS) {
+    if (n.ix === ix && n.iy === iy) return n;
+  }
+  return null;
+}

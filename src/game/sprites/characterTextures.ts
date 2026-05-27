@@ -9,7 +9,7 @@ export const CHARACTERS = [
   "brown-lab",
   "pug",
   "pug-beagle",
-  "wiener",
+  "dachshund",
   "brown-tabby",
   "orange-tabby",
 ] as const;
@@ -27,7 +27,7 @@ export const CHARACTER_LABELS: Record<CharacterId, string> = {
   "brown-lab": "Brown Lab",
   pug: "Pug",
   "pug-beagle": "Pug Beagle",
-  wiener: "Wiener",
+  dachshund: "Dachshund",
   "brown-tabby": "Brown Tabby",
   "orange-tabby": "Orange Tabby",
 };

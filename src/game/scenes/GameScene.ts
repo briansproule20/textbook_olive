@@ -22,7 +22,7 @@ import {
   hasStoneAt,
   listAllStoneTiles,
 } from "../world/stones";
-import { NPCS } from "../world/npcs";
+import { NPCS, isNpcTile, npcAt, type NpcSpec } from "../world/npcs";
 import { addItem } from "../saves/saveGame";
 import { emitHarvest } from "../events";
 import {
@@ -81,7 +81,7 @@ export class GameScene extends Phaser.Scene {
   private charAtlas = "character-cat";
   private treeImages = new Map<string, Phaser.GameObjects.Image>();
   private stoneImages = new Map<string, Phaser.GameObjects.Image>();
-  private npcs: { sprite: Phaser.GameObjects.Sprite; nameLabel: Phaser.GameObjects.Text; bubble: Phaser.GameObjects.Text }[] = [];
+  private npcs: { spec: NpcSpec; sprite: Phaser.GameObjects.Sprite; nameLabel: Phaser.GameObjects.Text; bubble: Phaser.GameObjects.Text; bubbleHideAt: number }[] = [];
 
   constructor() {
     super("GameScene");
@@ -282,6 +282,7 @@ export class GameScene extends Phaser.Scene {
 
     this.refreshTreeVisuals();
     this.refreshStoneVisuals();
+    this.updateNpcBubbles();
 
     if (moving && !this.attacking) {
       this.facing = directionFromVector(moveVec, this.facing);
@@ -492,6 +493,14 @@ export class GameScene extends Phaser.Scene {
 
   private tryHarvestTree(): void {
     const candidates = this.nearbyTiles();
+    // NPCs first — interacting (SPACE near an NPC) shows their dialogue bubble.
+    for (const { ix, iy } of candidates) {
+      const npc = npcAt(ix, iy);
+      if (npc) {
+        this.showNpcBubble(npc);
+        return;
+      }
+    }
     for (const { ix, iy } of candidates) {
       if (!hasTreeAt(ix, iy)) continue;
       const wood = damageTree(ix, iy);
@@ -538,7 +547,7 @@ export class GameScene extends Phaser.Scene {
       for (let dy = -1; dy <= 1; dy++) {
         const tx = baseX + dx;
         const ty = baseY + dy;
-        if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty)) continue;
+        if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty) && !isNpcTile(tx, ty)) continue;
         const ex = iso.x - tx;
         const ey = iso.y - ty;
         if (ex * ex + ey * ey < GameScene.COLLISION_RADIUS_SQ) return true;
@@ -622,13 +631,29 @@ export class GameScene extends Phaser.Scene {
         color: "#0c1c0a",
         backgroundColor: "#fff7c0",
         padding: { left: 8, right: 8, top: 4, bottom: 4 },
-        stroke: "#0c1c0a",
-        strokeThickness: 0,
       });
       bubble.setOrigin(0.5, 1);
       bubble.setDepth(sprite.depth + 2);
+      bubble.setVisible(false); // shows only on interaction
 
-      this.npcs.push({ sprite, nameLabel, bubble });
+      this.npcs.push({ spec, sprite, nameLabel, bubble, bubbleHideAt: 0 });
+    }
+  }
+
+  // Show the dialogue bubble for a few seconds. Re-pressing space refreshes it.
+  private showNpcBubble(spec: NpcSpec): void {
+    const npc = this.npcs.find((n) => n.spec.id === spec.id);
+    if (!npc) return;
+    npc.bubble.setVisible(true);
+    npc.bubbleHideAt = Date.now() + 3000;
+  }
+
+  private updateNpcBubbles(): void {
+    const now = Date.now();
+    for (const npc of this.npcs) {
+      if (npc.bubble.visible && now >= npc.bubbleHideAt) {
+        npc.bubble.setVisible(false);
+      }
     }
   }
 }

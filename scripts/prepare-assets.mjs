@@ -24,7 +24,7 @@ const CHARACTERS = [
   "brown-lab",
   "pug",
   "pug-beagle",
-  "wiener",
+  "dachshund",
   "brown-tabby",
   "orange-tabby",
 ];
