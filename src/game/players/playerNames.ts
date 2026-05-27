@@ -8,14 +8,18 @@ export const ADJECTIVES = [
 
 export const ADJECTIVE_PATTERN = /^[A-Z][a-zA-Z]*$/;
 
-export function saveNameParts(adj: string, num: number): void {
+export function saveNameParts(adj: string, num: number, custom?: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem("poncho.nameParts", JSON.stringify({ adj, num }));
+    const payload: { adj: string; num: number; custom?: string } = { adj, num };
+    if (custom && custom.trim().length > 0) payload.custom = custom.trim();
+    window.localStorage.setItem("poncho.nameParts", JSON.stringify(payload));
   } catch {
     // ignore
   }
 }
+
+export const CUSTOM_NAME_PATTERN = /^[A-Z][a-zA-Z' -]{0,23}$/;
 
 export function hasSavedNameParts(): boolean {
   if (typeof window === "undefined") return false;
@@ -32,6 +36,7 @@ const LEGACY_FULL_KEY = "poncho.localName";
 interface NameParts {
   adj: string;
   num: number;
+  custom?: string;
 }
 
 function randomParts(): NameParts {
@@ -44,13 +49,19 @@ function randomParts(): NameParts {
 function isValidParts(value: unknown): value is NameParts {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
-  return (
-    typeof v.adj === "string" &&
-    /^[A-Z][a-zA-Z]+$/.test(v.adj) &&
-    typeof v.num === "number" &&
-    v.num >= 10 &&
-    v.num <= 99
-  );
+  if (
+    typeof v.adj !== "string" ||
+    !/^[A-Z][a-zA-Z]+$/.test(v.adj) ||
+    typeof v.num !== "number" ||
+    v.num < 10 ||
+    v.num > 99
+  ) {
+    return false;
+  }
+  if (v.custom !== undefined && (typeof v.custom !== "string" || !CUSTOM_NAME_PATTERN.test(v.custom))) {
+    return false;
+  }
+  return true;
 }
 
 function loadOrCreateParts(): NameParts {
@@ -85,7 +96,8 @@ function loadOrCreateParts(): NameParts {
 }
 
 export function composeName(parts: NameParts, charLabel: string): string {
-  return `${parts.adj} ${charLabel} ${parts.num}`;
+  const middle = parts.custom && parts.custom.length > 0 ? parts.custom : charLabel;
+  return `${parts.adj} ${middle} ${parts.num}`;
 }
 
 export function loadOrCreateLocalName(charLabel: string): string {

@@ -11,6 +11,7 @@ import {
 import {
   ADJECTIVES,
   ADJECTIVE_PATTERN,
+  CUSTOM_NAME_PATTERN,
   saveNameParts,
 } from "@/game/players/playerNames";
 
@@ -60,6 +61,7 @@ interface Props {
 
 export default function WelcomeScreen({ onComplete }: Props) {
   const [adj, setAdj] = useState<string>(() => ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]);
+  const [custom, setCustom] = useState<string>("");
   const [num, setNum] = useState<string>(() => String(Math.floor(Math.random() * 90) + 10));
   const [charIdx, setCharIdx] = useState<number>(() => CHARACTERS.indexOf(DEFAULT_CHARACTER));
 
@@ -69,9 +71,12 @@ export default function WelcomeScreen({ onComplete }: Props) {
   const adjValid = ADJECTIVE_PATTERN.test(adj.trim()) && adj.trim().length > 0;
   const numInt = parseInt(num, 10);
   const numValid = !Number.isNaN(numInt) && numInt >= 10 && numInt <= 99;
-  const ready = adjValid && numValid;
+  const customTrim = custom.trim();
+  const customValid = customTrim.length === 0 || CUSTOM_NAME_PATTERN.test(customTrim);
+  const ready = adjValid && numValid && customValid;
 
-  const previewName = `${adj.trim() || "____"} ${charLabel} ${numValid ? numInt : "__"}`;
+  const middleName = customTrim.length > 0 ? customTrim : charLabel;
+  const previewName = `${adj.trim() || "____"} ${middleName} ${numValid ? numInt : "__"}`;
 
   const rollAdj = useCallback(() => {
     let next = adj;
@@ -100,14 +105,14 @@ export default function WelcomeScreen({ onComplete }: Props) {
   const start = useCallback(() => {
     if (!ready) return;
     saveSelectedCharacter(charId);
-    saveNameParts(adj.trim(), numInt);
+    saveNameParts(adj.trim(), numInt, customTrim || undefined);
     try {
       window.localStorage.setItem("poncho.welcomeShown", "1");
     } catch {
       // ignore
     }
     onComplete();
-  }, [ready, adj, numInt, charId, onComplete]);
+  }, [ready, adj, numInt, customTrim, charId, onComplete]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -126,41 +131,31 @@ export default function WelcomeScreen({ onComplete }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [prevChar, nextChar, ready, start]);
 
-  // Generated isometric grass backdrop so previewed sprites don't sit on a
-  // flat dark field — keeps the in-game atlases as bare cutouts but gives the
-  // welcome screen something to read against.
-  const sceneBg = useMemo(() => {
-    const tileW = 64;
-    const tileH = 32;
-    const svg = `\
-<svg xmlns='http://www.w3.org/2000/svg' width='${tileW}' height='${tileH}' viewBox='0 0 ${tileW} ${tileH}'>\
-<defs>\
-<linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>\
-<stop offset='0' stop-color='#6fa256'/>\
-<stop offset='1' stop-color='#4f7a3d'/>\
-</linearGradient>\
-</defs>\
-<rect width='${tileW}' height='${tileH}' fill='url(#g)'/>\
-<path d='M${tileW / 2} 1 L${tileW - 1} ${tileH / 2} L${tileW / 2} ${tileH - 1} L1 ${tileH / 2} Z' fill='none' stroke='rgba(255,255,255,0.05)' stroke-width='1'/>\
-<circle cx='14' cy='8' r='1' fill='#f2c14e' opacity='0.55'/>\
-<circle cx='48' cy='22' r='1' fill='#fff2a8' opacity='0.6'/>\
-</svg>`;
-    const encoded = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-    return {
-      backgroundImage: `radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 35%, rgba(0,0,0,0.55) 100%), url("${encoded}")`,
-      backgroundSize: "auto, 64px 32px",
-      backgroundRepeat: "no-repeat, repeat",
-    } as const;
-  }, []);
+  // Real generated grass tile from the asset prep pipeline. Tiles are 128x64
+  // 2:1 isometric — repeat them with a soft vignette so the preview looks
+  // like the in-game ground without the welcome screen needing its own art.
+  const sceneBg = useMemo(() => ({
+    backgroundImage: `radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.45) 100%), url("/sprites/tiles/grass.png")`,
+    backgroundSize: "auto, 128px 64px",
+    backgroundRepeat: "no-repeat, repeat",
+    imageRendering: "pixelated" as const,
+  }), []);
 
-  // Sprite cutout: center the idle_se frame (top-left of atlas) in the box.
+  // Sprite cutout. Character body in the 256x256 frame is centered horizontally
+  // and has its baseline at y≈246, so the body spans roughly y=40..246. To
+  // visually center the body in the preview box, shift the atlas up so the
+  // body midpoint lands at the box midpoint.
   const previewBg = useMemo(() => {
-    const spritePx = ATLAS_NATURAL * PREVIEW_RATIO;
-    const offset = (PREVIEW_PX - FRAME_NATURAL * PREVIEW_RATIO) / 2;
+    const spritePx = ATLAS_NATURAL * PREVIEW_RATIO; // total atlas pixel size when rendered
+    // Frame 0 (idle_se) sits at top-left of atlas. The body midpoint inside
+    // that frame is ~y=143 (between top of head ~40 and baseline 246).
+    const bodyMidYInFrame = 143;
+    const offsetX = (PREVIEW_PX - FRAME_NATURAL * PREVIEW_RATIO) / 2;
+    const offsetY = PREVIEW_PX / 2 - bodyMidYInFrame * PREVIEW_RATIO;
     return {
       backgroundImage: `url(/sprites/characters/${charId}/${charId}.png)`,
       backgroundSize: `${spritePx}px ${spritePx}px`,
-      backgroundPosition: `${offset}px ${offset + 8}px`,
+      backgroundPosition: `${offsetX}px ${offsetY}px`,
       backgroundRepeat: "no-repeat",
       imageRendering: "pixelated" as const,
     };
@@ -231,7 +226,22 @@ export default function WelcomeScreen({ onComplete }: Props) {
                 ...sceneBg,
               }}
             >
-              <div style={{ position: "absolute", inset: 0, ...previewBg }} />
+              {/* Inline SVG filter: drops near-white pixels to transparent so
+                  any residual white bg in source sprites doesn't show on the
+                  grass tile preview. In-game atlases load raw (no filter). */}
+              <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+                <filter id="poncho-kill-white" colorInterpolationFilters="sRGB">
+                  <feColorMatrix
+                    type="matrix"
+                    values="1 0 0 0 0
+                            0 1 0 0 0
+                            0 0 1 0 0
+                            -3 -3 -3 0 3"
+                  />
+                  <feComposite in="SourceGraphic" in2="result" operator="in" />
+                </filter>
+              </svg>
+              <div style={{ position: "absolute", inset: 0, ...previewBg, filter: "url(#poncho-kill-white)" }} />
             </div>
             <button
               type="button"
@@ -248,8 +258,8 @@ export default function WelcomeScreen({ onComplete }: Props) {
           </div>
         </section>
 
-        {/* Adjective + Number side by side */}
-        <section style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {/* Adjective + (optional) Name + Number */}
+        <section style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr", gap: 12 }}>
           <Field
             label="Adjective"
             value={adj}
@@ -258,6 +268,15 @@ export default function WelcomeScreen({ onComplete }: Props) {
             valid={adjValid}
             onRoll={rollAdj}
             helperWhenInvalid="Letters only, capital first"
+          />
+          <Field
+            label="Name (optional)"
+            value={custom}
+            onChange={(v) => setCustom(v.replace(/[^a-zA-Z' -]/g, "").replace(/^./, (c) => c.toUpperCase()).slice(0, 24))}
+            placeholder={charLabel}
+            valid={customValid}
+            helperWhenInvalid="Letters, spaces, ' or -; capital first; ≤24"
+            optional
           />
           <Field
             label="Number"
@@ -335,12 +354,13 @@ interface FieldProps {
   placeholder: string;
   valid: boolean;
   onChange: (v: string) => void;
-  onRoll: () => void;
+  onRoll?: () => void;
   helperWhenInvalid: string;
   inputMode?: "text" | "numeric";
+  optional?: boolean;
 }
 
-function Field({ label, value, placeholder, valid, onChange, onRoll, helperWhenInvalid, inputMode = "text" }: FieldProps) {
+function Field({ label, value, placeholder, valid, onChange, onRoll, helperWhenInvalid, inputMode = "text", optional = false }: FieldProps) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -379,29 +399,31 @@ function Field({ label, value, placeholder, valid, onChange, onRoll, helperWhenI
             minWidth: 0,
           }}
         />
-        <button
-          type="button"
-          onClick={onRoll}
-          aria-label={`Random ${label.toLowerCase()}`}
-          title={`Random ${label.toLowerCase()}`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36,
-            height: 36,
-            background: "transparent",
-            color: COLORS.text,
-            border: `1px solid ${COLORS.fieldBorder}`,
-            borderRadius: 8,
-            cursor: "pointer",
-          }}
-        >
-          <DiceIcon />
-        </button>
+        {onRoll && (
+          <button
+            type="button"
+            onClick={onRoll}
+            aria-label={`Random ${label.toLowerCase()}`}
+            title={`Random ${label.toLowerCase()}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              background: "transparent",
+              color: COLORS.text,
+              border: `1px solid ${COLORS.fieldBorder}`,
+              borderRadius: 8,
+              cursor: "pointer",
+            }}
+          >
+            <DiceIcon />
+          </button>
+        )}
       </div>
       <div style={{ minHeight: 16, fontSize: 11, color: valid ? COLORS.muted : COLORS.danger }}>
-        {valid ? " " : helperWhenInvalid}
+        {valid ? (optional ? "Defaults to the sprite's name" : " ") : helperWhenInvalid}
       </div>
     </div>
   );
