@@ -386,14 +386,17 @@ async function prepareTiles() {
   return { outPng, outJson, sheetW: sheet.width, sheetH: sheet.height, sizes };
 }
 
-// Load a 2x2 walk strip (1024x1024 PNG) and return 4 normalized 256x256 frame cells.
-async function loadWalkStrip(stripPath, label) {
+// Load a 2x2 walk strip (1024x1024 PNG) and return 4 cropped raw images + bboxes.
+// Cells are NOT yet scaled — scaling happens after we know the global max bbox
+// across the whole character so every frame uses the same scale factor and the
+// character doesn't change size when walking or turning.
+async function loadWalkStripRaw(stripPath, label) {
   const src = await readPng(stripPath);
   if (src.width !== 1024 || src.height !== 1024) {
     throw new Error(`${label} must be 1024x1024, got ${src.width}x${src.height}`);
   }
   const mask = buildBgMask(src);
-  const cells = [];
+  const crops = [];
   for (let i = 0; i < STRIP_QUADRANTS.length; i++) {
     const { col, row } = STRIP_QUADRANTS[i];
     const qx = col * 512;
@@ -401,14 +404,22 @@ async function loadWalkStrip(stripPath, label) {
     const bbox = bboxInQuadrant(src, mask, qx, qy, 512, 512);
     if (!bbox) throw new Error(`empty quadrant ${i} for ${label}`);
     const cropped = extractCrop(src, mask, qx, qy, bbox);
-    const scaled = downscaleFit(cropped, CHAR_INNER, CHAR_INNER);
+    crops.push(cropped);
+  }
+  return crops;
+}
+
+function bakeCellsAtScale(crops, scale) {
+  return crops.map((cropped) => {
+    const dw = Math.max(1, Math.round(cropped.width * scale));
+    const dh = Math.max(1, Math.round(cropped.height * scale));
+    const scaled = downscaleExact(cropped, dw, dh);
     const cell = emptyPng(CHAR_FRAME, CHAR_FRAME);
     const dx = Math.floor((CHAR_FRAME - scaled.width) / 2);
     const dy = CHAR_BASELINE_Y - scaled.height;
     blit(cell, scaled, dx, dy);
-    cells.push(cell);
-  }
-  return cells;
+    return cell;
+  });
 }
 
 async function prepareCharacter(charId) {
@@ -418,9 +429,25 @@ async function prepareCharacter(charId) {
   if (!(await exists(sePath))) throw new Error(`missing walk strip: assets/raw/walks/${charId}/se.png`);
   if (!(await exists(nePath))) throw new Error(`missing walk strip: assets/raw/walks/${charId}/ne.png`);
 
+  const rawCrops = {
+    se: await loadWalkStripRaw(sePath, `walks/${charId}/se.png`),
+    ne: await loadWalkStripRaw(nePath, `walks/${charId}/ne.png`),
+  };
+
+  // Compute one scale factor across ALL frames so the character is the same
+  // visual size in every direction and every walk pose. Use the largest
+  // dimension across every crop to constrain to CHAR_INNER.
+  let maxDim = 0;
+  for (const dir of ["se", "ne"]) {
+    for (const c of rawCrops[dir]) {
+      maxDim = Math.max(maxDim, c.width, c.height);
+    }
+  }
+  const scale = Math.min(CHAR_INNER / maxDim, 1);
+
   const strips = {
-    se: await loadWalkStrip(sePath, `walks/${charId}/se.png`),
-    ne: await loadWalkStrip(nePath, `walks/${charId}/ne.png`),
+    se: bakeCellsAtScale(rawCrops.se, scale),
+    ne: bakeCellsAtScale(rawCrops.ne, scale),
   };
   const flipped = {
     se: strips.se.map(flipHorizontal),
