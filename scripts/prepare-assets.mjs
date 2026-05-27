@@ -262,8 +262,8 @@ async function prepareTiles() {
   const mask = buildBgMask(src);
   const quadrants = [
     { name: "grass", qx: 0, qy: 0 },
-    { name: "grass2", qx: 512, qy: 0 },
-    { name: "dirt", qx: 0, qy: 512 },
+    { name: "dirt", qx: 512, qy: 0 },
+    { name: "grass2", qx: 0, qy: 512 },
     { name: "dirt2", qx: 512, qy: 512 },
   ];
 
