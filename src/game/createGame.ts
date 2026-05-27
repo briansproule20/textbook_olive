@@ -5,7 +5,7 @@ export async function createGame(parent: HTMLElement): Promise<Phaser.Game> {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    backgroundColor: "#1a1c24",
+    backgroundColor: "#1f2f24",
     scale: {
       mode: Phaser.Scale.RESIZE,
       width: parent.clientWidth || window.innerWidth,

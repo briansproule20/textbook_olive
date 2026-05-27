@@ -46,8 +46,9 @@ interface RemotePlayer {
 }
 
 const MOVE_SPEED = 180;
-const GRID_RADIUS = 20;
+const GRID_RADIUS = 50;
 const CHAR_SCALE = 0.55;
+const DECOR_DEPTH_BOOST = 100;
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -109,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     this.playAnim("idle", this.facing);
 
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
+    this.cameras.main.centerOn(this.player.x, this.player.y);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys({
@@ -172,8 +174,46 @@ export class GameScene extends Phaser.Scene {
         const img = this.add.image(x, y, TILE_ATLAS_KEY, tileName);
         img.setOrigin(0.5, 0.5);
         img.setDepth(worldObjectDepth(y) - 1000);
+        this.drawDecorOn(ix, iy, x, y, tileName);
       }
     }
+  }
+
+  private drawDecorOn(ix: number, iy: number, x: number, y: number, tile: string): void {
+    // Skip the spawn tile so it never has clutter on the player's exact spot.
+    if (ix === 0 && iy === 0) return;
+    if (!tile.startsWith("grass")) return;
+    const hash = ((ix * 2654435761) ^ (iy * 40503)) >>> 0;
+    const bucket = hash % 100;
+    if (bucket >= 28) return;
+    const g = this.add.graphics();
+    g.setDepth(worldObjectDepth(y) - 500);
+    const jitter = ((hash >>> 8) % 9) - 4;
+    const px = x + jitter;
+    const py = y + (((hash >>> 16) % 7) - 3);
+    if (bucket < 10) {
+      // Tiny flower: yellow center, white petals.
+      g.fillStyle(0xfff2a8, 1);
+      g.fillCircle(px, py, 2);
+      g.fillStyle(0xf2c14e, 1);
+      g.fillCircle(px, py, 1);
+    } else if (bucket < 20) {
+      // Grass tuft: three short upward lines.
+      g.lineStyle(2, 0x4a7b3a, 1);
+      g.beginPath();
+      g.moveTo(px - 3, py + 2); g.lineTo(px - 2, py - 4);
+      g.moveTo(px, py + 2);     g.lineTo(px, py - 5);
+      g.moveTo(px + 3, py + 2); g.lineTo(px + 2, py - 4);
+      g.strokePath();
+    } else {
+      // Pebble: small dark ellipse with highlight.
+      g.fillStyle(0x444a4a, 1);
+      g.fillEllipse(px, py, 6, 3);
+      g.fillStyle(0x6b7474, 1);
+      g.fillEllipse(px - 1, py - 1, 3, 1);
+    }
+    // Make sure decor draws above its tile but below the player when player passes.
+    g.setDepth(worldObjectDepth(y) + DECOR_DEPTH_BOOST);
   }
 
   private playAnim(action: Action, direction: Direction): void {
