@@ -1,9 +1,37 @@
 export const ADJECTIVES = [
+  // OG roster
   "Brave", "Clever", "Daring", "Eager", "Fierce", "Gentle", "Happy", "Iron",
   "Jolly", "Keen", "Lucky", "Mighty", "Noble", "Odd", "Proud", "Quick",
   "Royal", "Swift", "Tough", "Upbeat", "Valiant", "Wise", "Xenial", "Yare",
   "Zesty", "Cosmic", "Mellow", "Plucky", "Rowdy", "Shiny", "Spry", "Stout",
   "Sunny", "Vivid", "Witty", "Bold", "Calm", "Dusty", "Frosty", "Glowing",
+
+  // Epic / fantastic
+  "Astral", "Auroral", "Boundless", "Crimson", "Eternal", "Glorious", "Gilded",
+  "Lunar", "Mythic", "Obsidian", "Radiant", "Regal", "Resolute", "Resplendent",
+  "Solar", "Sovereign", "Stalwart", "Steadfast", "Stellar", "Sublime",
+  "Tidal", "Untamed", "Valorous", "Velvet", "Verdant", "Vigilant", "Volcanic",
+
+  // Humorous / silly
+  "Boopy", "Bouncy", "Buttery", "Cheeky", "Crispy", "Cranky", "Crusty",
+  "Dapper", "Doughy", "Drippy", "Floppy", "Funky", "Goofy", "Grumpy",
+  "Janky", "Kooky", "Loopy", "Mushy", "Saucy", "Sassy", "Snazzy",
+  "Snoozy", "Snuggly", "Spiffy", "Squishy", "Stinky", "Toasty", "Wacky",
+  "Wiggly", "Wonky", "Yappy",
+
+  // Deep pulls / evocative / obscure
+  "Arcane", "Austere", "Brazen", "Brisk", "Candid", "Cunning", "Devout",
+  "Diligent", "Ebullient", "Effervescent", "Eldritch", "Ephemeral", "Esoteric",
+  "Fanciful", "Feral", "Fervid", "Fey", "Gallant", "Garrulous", "Gossamer",
+  "Grizzled", "Halcyon", "Hardy", "Hearty", "Humble", "Inveterate",
+  "Insolent", "Insouciant", "Itinerant", "Jaunty", "Jovial", "Lambent",
+  "Languid", "Lithe", "Lonesome", "Magnanimous", "Maverick", "Mellifluous",
+  "Mercurial", "Nimble", "Nocturnal", "Numinous", "Pellucid", "Pithy",
+  "Placid", "Quaint", "Quixotic", "Rakish", "Rangy", "Roving", "Rugged",
+  "Rusty", "Sage", "Salty", "Sanguine", "Saturnine", "Serene", "Sidereal",
+  "Sprightly", "Surly", "Sylvan", "Tireless", "Twilit", "Verbose",
+  "Vespertine", "Vexing", "Vivacious", "Wandering", "Wayward", "Whimsical",
+  "Wiry", "Wistful", "Yonder", "Zealous",
 ];
 
 export const ADJECTIVE_PATTERN = /^[A-Z][a-zA-Z]*$/;
