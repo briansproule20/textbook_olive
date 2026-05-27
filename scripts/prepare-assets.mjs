@@ -140,7 +140,6 @@ function buildBgMask(src) {
   const final = new Uint8Array(current);
   const stack = new Int32Array(w * h);
   const comp = new Int32Array(w * h);
-  const INTERIOR_BG_MIN = 200;
   for (let startY = 0; startY < h; startY++) {
     for (let startX = 0; startX < w; startX++) {
       const startIdx = startY * w + startX;
@@ -151,6 +150,7 @@ function buildBgMask(src) {
       visited[startIdx] = 1;
       let touchesEdge = false;
       let sumR = 0, sumG = 0, sumB = 0, sumMin = 0;
+      let brightCount = 0;
       while (top > 0) {
         const idx = stack[--top];
         comp[compLen++] = idx;
@@ -161,7 +161,9 @@ function buildBgMask(src) {
         sumR += src.data[i];
         sumG += src.data[i + 1];
         sumB += src.data[i + 2];
-        sumMin += Math.min(src.data[i], src.data[i + 1], src.data[i + 2]);
+        const minRGB = Math.min(src.data[i], src.data[i + 1], src.data[i + 2]);
+        sumMin += minRGB;
+        if (minRGB >= 220) brightCount += 1;
         const neighbors = [idx - 1, idx + 1, idx - w, idx + w];
         const xs = [x - 1, x + 1, x, x];
         const ys = [y, y, y - 1, y + 1];
@@ -177,10 +179,38 @@ function buildBgMask(src) {
       }
       if (touchesEdge) continue;
       const avgMin = sumMin / compLen;
-      if (avgMin < INTERIOR_BG_MIN) continue;
+      const brightFrac = brightCount / compLen;
+      // A near-white interior pocket is either:
+      //   (a) small and mostly bright — typical "white gap between cat legs",
+      //   (b) any size but VERY pure white — pure bg leakage,
+      //   (c) modest size with a majority of pixels in the bright range.
+      // Larger components are mostly real character markings (aussie blaze /
+      // chest / penguin belly) and stay opaque.
+      const isPocket =
+        (compLen < 250 && avgMin >= 180) ||
+        avgMin >= 235 ||
+        (compLen < 600 && brightFrac >= 0.75);
+      if (!isPocket) continue;
       for (let i = 0; i < compLen; i++) final[comp[i]] = 1;
     }
   }
+
+  // Final pass: anti-aliased edges around interior white pockets can make the
+  // pocket connect to the character body through a thin rim of mid-gray pixels,
+  // so the whole cat reads as one connected component and the component-based
+  // detector misses it. Mark any remaining UNMARKED pixel whose color is
+  // essentially pure white as background regardless of connectivity. The
+  // threshold is intentionally strict (>=250) so cel-shaded interior markings
+  // (aussie blaze, penguin belly) with their slightly off-white shadows survive.
+  for (let i = 0; i < w * h; i++) {
+    if (final[i]) continue;
+    const j = i * 4;
+    const r = src.data[j];
+    const g = src.data[j + 1];
+    const b = src.data[j + 2];
+    if (Math.min(r, g, b) >= 250) final[i] = 1;
+  }
+
   return final;
 }
 
