@@ -10,6 +10,15 @@ import {
 } from "../world/isometricWorld";
 import { GRID_RADIUS, TILE_ATLAS_KEY, tileAt } from "../world/tiles";
 import {
+  damageTree,
+  getTreeState,
+  hasTreeAt,
+  listAllTreeTiles,
+  TREE_MAX_HP,
+} from "../world/trees";
+import { addItem } from "../saves/saveGame";
+import { emitHarvest } from "../events";
+import {
   atlasKey,
   CHARACTER_LABELS,
   DIRECTIONS,
@@ -63,6 +72,7 @@ export class GameScene extends Phaser.Scene {
   private remotes = new Map<string, RemotePlayer>();
   private charId: CharacterId = "cat";
   private charAtlas = "character-cat";
+  private treeImages = new Map<string, Phaser.GameObjects.Image>();
 
   constructor() {
     super("GameScene");
@@ -80,11 +90,13 @@ export class GameScene extends Phaser.Scene {
       `/sprites/characters/${this.charId}/${this.charId}.png`,
       `/sprites/characters/${this.charId}/${this.charId}.json`
     );
+    this.load.image("tree", "/sprites/objects/tree.png");
   }
 
   create(): void {
     this.createAnimations();
     this.drawTileGrid();
+    this.placeTrees();
 
     this.localName = loadOrCreateLocalName(CHARACTER_LABELS[this.charId]);
 
@@ -240,7 +252,10 @@ export class GameScene extends Phaser.Scene {
       this.attacking = true;
       this.action = "attack";
       this.playAnim("attack", this.facing);
+      this.tryHarvestTree();
     }
+
+    this.refreshTreeVisuals();
 
     if (moving && !this.attacking) {
       this.facing = directionFromVector(moveVec, this.facing);
@@ -360,7 +375,71 @@ export class GameScene extends Phaser.Scene {
     rp.label.destroy();
     this.remotes.delete(id);
   }
+
+  // ---------- Trees ----------
+
+  private placeTrees(): void {
+    if (!this.textures.exists("tree")) return;
+    const trees = listAllTreeTiles();
+    for (const { ix, iy } of trees) {
+      const { x, y } = isoToScreen(ix, iy);
+      const img = this.add.image(x, y, "tree");
+      img.setOrigin(0.5, 0.95); // base sits on the tile, trunk anchored near bottom
+      img.setScale(0.35);
+      img.setDepth(worldObjectDepth(y));
+      this.treeImages.set(`${ix},${iy}`, img);
+    }
+  }
+
+  // Visual feedback for tree HP: depleted trees become dim until they refresh.
+  private refreshTreeVisuals(): void {
+    for (const [key, img] of this.treeImages.entries()) {
+      const [ixStr, iyStr] = key.split(",");
+      const ix = Number(ixStr);
+      const iy = Number(iyStr);
+      const s = getTreeState(ix, iy);
+      const depleted = s.hp <= 0;
+      const targetAlpha = depleted ? 0.45 : 1;
+      if (img.alpha !== targetAlpha) img.setAlpha(targetAlpha);
+    }
+  }
+
+  // Returns the iso tile the player is currently standing on, then the tile
+  // directly in front based on facing. Trees are harvested when the player
+  // attacks while standing adjacent to one.
+  private playerFacingTile(): { ix: number; iy: number } {
+    const footY = this.player.y - BASELINE_OFFSET * CHAR_SCALE;
+    const iso = screenToIso(this.player.x, footY);
+    const ix = Math.round(iso.x);
+    const iy = Math.round(iso.y);
+    // SE = +ix, SW = +iy, NE = -iy, NW = -ix in iso tile coords
+    const offsets: Record<Direction, [number, number]> = {
+      se: [1, 0],
+      sw: [0, 1],
+      ne: [0, -1],
+      nw: [-1, 0],
+    };
+    const [dx, dy] = offsets[this.facing];
+    return { ix: ix + dx, iy: iy + dy };
+  }
+
+  private tryHarvestTree(): void {
+    const facing = this.playerFacingTile();
+    // Also accept current tile in case the player is overlapping a tree footprint
+    const candidates = [facing, { ix: facing.ix, iy: facing.iy }];
+    for (const { ix, iy } of candidates) {
+      if (!hasTreeAt(ix, iy)) continue;
+      const wood = damageTree(ix, iy);
+      if (wood > 0) {
+        addItem({ id: "wood", label: "Wood", qty: wood });
+        emitHarvest({ itemId: "wood", qty: wood, screenX: this.player.x, screenY: this.player.y });
+      }
+      return;
+    }
+  }
 }
+
+void TREE_MAX_HP;
 
 // silence unused-import linting in strict mode
 void animationKey;

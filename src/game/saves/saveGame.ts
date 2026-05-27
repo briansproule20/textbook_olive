@@ -137,6 +137,12 @@ export function addItem(item: InventoryItem): void {
   for (const cb of listeners) cb(getInventory());
 }
 
+// Convenience accessor for a single item count.
+export function itemCount(id: string): number {
+  const it = inventory.find((i) => i.id === id);
+  return it ? it.qty ?? 1 : 0;
+}
+
 export function subscribeInventory(cb: (items: InventoryItem[]) => void): () => void {
   listeners.add(cb);
   return () => {

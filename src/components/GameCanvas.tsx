@@ -7,6 +7,7 @@ import MiniMap from "./MiniMap";
 import SaveGameButton from "./SaveGameButton";
 import SpritePicker from "./SpritePicker";
 import WelcomeScreen from "./WelcomeScreen";
+import WoodHud from "./WoodHud";
 
 export default function GameCanvas() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -54,6 +55,7 @@ export default function GameCanvas() {
       <SpritePicker />
       <SaveGameButton />
       <Hud />
+      <WoodHud />
       <MiniMap />
       <InventoryModal />
     </>

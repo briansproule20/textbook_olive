@@ -26,7 +26,7 @@ const CHARACTERS = [
   "orange-tabby",
 ];
 
-const TILE_NAMES = ["grass", "grass2", "dirt", "dirt2"];
+const TILE_NAMES = ["grass", "grass2", "dirt", "rock"];
 const TILE_W = 128;
 const TILE_H = 64;
 
@@ -525,7 +525,7 @@ async function prepareTiles() {
     { name: "grass", qx: 0, qy: 0 },
     { name: "dirt", qx: 512, qy: 0 },
     { name: "grass2", qx: 0, qy: 512 },
-    { name: "dirt2", qx: 512, qy: 512 },
+    { name: "rock", qx: 512, qy: 512 },
   ];
 
   const sheet = emptyPng(TILE_W * 4, TILE_H);
@@ -745,6 +745,22 @@ async function main() {
     console.log(`        png:  ${path.relative(ROOT, res.outPng)}`);
     console.log(`        json: ${path.relative(ROOT, res.outJson)}`);
     charResults[id] = res;
+  }
+
+  // Static object sprites (trees, etc.) — copy raw assets directly to public/.
+  // No frame/animation processing; the game loads them as plain Image textures.
+  const objectsRawDir = path.join(RAW_DIR, "objects");
+  const objectsOutDir = path.join(OUT_ROOT, "objects");
+  if (await exists(objectsRawDir)) {
+    await fs.mkdir(objectsOutDir, { recursive: true });
+    const objectFiles = await fs.readdir(objectsRawDir);
+    for (const fname of objectFiles) {
+      if (!fname.toLowerCase().endsWith(".png")) continue;
+      const srcPath = path.join(objectsRawDir, fname);
+      const destPath = path.join(objectsOutDir, fname);
+      await fs.copyFile(srcPath, destPath);
+      console.log(`[prep] object: ${path.relative(ROOT, destPath)}`);
+    }
   }
 
   const topManifest = {
