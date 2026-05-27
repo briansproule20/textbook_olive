@@ -170,7 +170,7 @@ export class GameScene extends Phaser.Scene {
         const { x, y } = isoToScreen(ix, iy);
         const tileName = tileAt(ix, iy);
         const img = this.add.image(x, y, TILE_ATLAS_KEY, tileName);
-        img.setOrigin(0.5, 0.25);
+        img.setOrigin(0.5, 0.5);
         img.setDepth(worldObjectDepth(y) - 1000);
       }
     }

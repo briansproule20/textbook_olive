@@ -1,5 +1,5 @@
-export const TILE_WIDTH = 96;
-export const TILE_HEIGHT = 48;
+export const TILE_WIDTH = 128;
+export const TILE_HEIGHT = 64;
 
 export interface Vec2 {
   x: number;

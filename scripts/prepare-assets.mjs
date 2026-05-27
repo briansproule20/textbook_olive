@@ -16,8 +16,8 @@ const RAW_TILES = path.join(RAW_DIR, "tiles.png");
 const CHARACTERS = ["cat", "aussie", "penguin"];
 
 const TILE_NAMES = ["grass", "grass2", "dirt", "dirt2"];
-const TILE_CELL = 128;
-const TILE_MAX = 128;
+const TILE_W = 128;
+const TILE_H = 64;
 
 const CHAR_FRAME = 256;
 const CHAR_INNER = 220;
@@ -223,6 +223,44 @@ function downscaleFit(src, maxW, maxH) {
   return out;
 }
 
+// Downscale src to exact target dimensions (stretches aspect if needed),
+// using box-average sampling. Used for tiles where every tile must be the
+// same diamond size so they tile edge-to-edge without visual elevation steps.
+function downscaleExact(src, dw, dh) {
+  const out = new PNG({ width: dw, height: dh });
+  for (let y = 0; y < dh; y++) {
+    const sy0 = Math.floor((y * src.height) / dh);
+    const sy1 = Math.max(sy0 + 1, Math.floor(((y + 1) * src.height) / dh));
+    for (let x = 0; x < dw; x++) {
+      const sx0 = Math.floor((x * src.width) / dw);
+      const sx1 = Math.max(sx0 + 1, Math.floor(((x + 1) * src.width) / dw));
+      let r = 0, g = 0, b = 0, a = 0, ar = 0, count = 0;
+      for (let yy = sy0; yy < sy1 && yy < src.height; yy++) {
+        for (let xx = sx0; xx < sx1 && xx < src.width; xx++) {
+          const i = (yy * src.width + xx) * 4;
+          const sa = src.data[i + 3];
+          r += src.data[i] * sa;
+          g += src.data[i + 1] * sa;
+          b += src.data[i + 2] * sa;
+          a += sa;
+          ar += 1;
+          count += sa;
+        }
+      }
+      const di = (y * dw + x) * 4;
+      if (ar === 0 || count === 0) {
+        out.data[di] = 0; out.data[di + 1] = 0; out.data[di + 2] = 0; out.data[di + 3] = 0;
+      } else {
+        out.data[di] = Math.round(r / count);
+        out.data[di + 1] = Math.round(g / count);
+        out.data[di + 2] = Math.round(b / count);
+        out.data[di + 3] = Math.round(a / ar);
+      }
+    }
+  }
+  return out;
+}
+
 function flipHorizontal(src) {
   const out = new PNG({ width: src.width, height: src.height });
   for (let y = 0; y < src.height; y++) {
@@ -286,7 +324,7 @@ async function prepareTiles() {
     { name: "dirt2", qx: 512, qy: 512 },
   ];
 
-  const sheet = emptyPng(TILE_CELL * 4, TILE_CELL);
+  const sheet = emptyPng(TILE_W * 4, TILE_H);
   const frames = {};
   const sizes = [];
 
@@ -295,17 +333,15 @@ async function prepareTiles() {
     const bbox = bboxInQuadrant(src, mask, q.qx, q.qy, 512, 512);
     if (!bbox) throw new Error(`empty quadrant for tile ${q.name}`);
     const cropped = extractCrop(src, mask, q.qx, q.qy, bbox);
-    const scaled = downscaleFit(cropped, TILE_MAX, TILE_MAX);
-    const cellX = idx * TILE_CELL;
-    const dx = cellX + Math.floor((TILE_CELL - scaled.width) / 2);
-    const dy = 0;
-    blit(sheet, scaled, dx, dy);
+    const scaled = downscaleExact(cropped, TILE_W, TILE_H);
+    const cellX = idx * TILE_W;
+    blit(sheet, scaled, cellX, 0);
     frames[q.name] = {
-      frame: { x: cellX, y: 0, w: TILE_CELL, h: TILE_CELL },
+      frame: { x: cellX, y: 0, w: TILE_W, h: TILE_H },
       rotated: false,
       trimmed: false,
-      spriteSourceSize: { x: 0, y: 0, w: TILE_CELL, h: TILE_CELL },
-      sourceSize: { w: TILE_CELL, h: TILE_CELL },
+      spriteSourceSize: { x: 0, y: 0, w: TILE_W, h: TILE_H },
+      sourceSize: { w: TILE_W, h: TILE_H },
     };
     sizes.push({ name: q.name, scaled: { w: scaled.width, h: scaled.height } });
   }
