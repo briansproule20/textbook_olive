@@ -10,6 +10,16 @@ export function isSpawnTile(ix: number, iy: number): boolean {
   return SPAWN_ROCK_TILES.has(`${ix},${iy}`);
 }
 
+// Clear ring around the spawn rock — no trees or stones spawn within
+// SPAWN_CLEAR_RADIUS tiles (Euclidean) of the spawn block's center (~0.5,0.5).
+export const SPAWN_CLEAR_RADIUS = 10;
+
+export function isInSpawnClearZone(ix: number, iy: number): boolean {
+  const dx = ix - 0.5;
+  const dy = iy - 0.5;
+  return dx * dx + dy * dy < SPAWN_CLEAR_RADIUS * SPAWN_CLEAR_RADIUS;
+}
+
 export function tileAt(ix: number, iy: number): TileFrame {
   if (isSpawnTile(ix, iy)) return "rock";
   const patchX = Math.floor(ix / 2);

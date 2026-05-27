@@ -8,7 +8,7 @@
 // TREE_RESPAWN_MS of real time, hp resets to MAX_HP — driven by Date.now()
 // so the clock is the player's machine clock.
 
-import { isSpawnTile, tileAt, GRID_RADIUS } from "./tiles";
+import { isInSpawnClearZone, isSpawnTile, tileAt, GRID_RADIUS } from "./tiles";
 
 export const TREE_DENSITY_PCT = 4; // ~4% of eligible tiles have a tree
 export const TREE_MAX_HP = 3;
@@ -27,6 +27,7 @@ function tileHash(ix: number, iy: number): number {
 export function hasTreeAt(ix: number, iy: number): boolean {
   if (Math.abs(ix) > GRID_RADIUS || Math.abs(iy) > GRID_RADIUS) return false;
   if (isSpawnTile(ix, iy)) return false;
+  if (isInSpawnClearZone(ix, iy)) return false;
   if (tileAt(ix, iy) !== "grass" && tileAt(ix, iy) !== "grass2") return false;
   return tileHash(ix, iy) % 100 < TREE_DENSITY_PCT;
 }
