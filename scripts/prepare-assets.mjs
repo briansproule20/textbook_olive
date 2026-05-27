@@ -318,20 +318,24 @@ function downscaleExact(src, dw, dh) {
 function clipToDiamond(img) {
   const w = img.width;
   const h = img.height;
-  const cx = (w - 1) / 2;
-  const cy = (h - 1) / 2;
-  const halfW = w / 2;
-  const halfH = h / 2;
+  // Use w/2 and h/2 as BOTH center and half-extent so the diamond edge falls
+  // on pixel-perfect positions that adjacent tiles share. Inclusive boundary
+  // (<= 1) means two neighbors overlap exactly at the shared edge with no gap.
+  const cx = w / 2;
+  const cy = h / 2;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const dx = Math.abs(x - cx) / halfW;
-      const dy = Math.abs(y - cy) / halfH;
+      const i = (y * w + x) * 4;
+      // Sample at pixel center (x+0.5, y+0.5).
+      const dx = Math.abs(x + 0.5 - cx) / (w / 2);
+      const dy = Math.abs(y + 0.5 - cy) / (h / 2);
       if (dx + dy > 1) {
-        const i = (y * w + x) * 4;
         img.data[i] = 0;
         img.data[i + 1] = 0;
         img.data[i + 2] = 0;
         img.data[i + 3] = 0;
+      } else {
+        img.data[i + 3] = 255;
       }
     }
   }
