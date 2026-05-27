@@ -8,7 +8,7 @@ import {
   worldObjectDepth,
   BASELINE_OFFSET,
 } from "../world/isometricWorld";
-import { GRID_RADIUS, tileAt } from "../world/tiles";
+import { GRID_RADIUS, TILE_ATLAS_KEY, tileAt } from "../world/tiles";
 import {
   atlasKey,
   CHARACTER_LABELS,
@@ -74,6 +74,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.atlas(TILE_ATLAS_KEY, "/sprites/tiles/tiles.png", "/sprites/tiles/tiles.json");
     this.load.atlas(
       this.charAtlas,
       `/sprites/characters/${this.charId}/${this.charId}.png`,
@@ -163,18 +164,24 @@ export class GameScene extends Phaser.Scene {
     return { key: `${resolved.key}_${this.charId}`, flipX: resolved.flipX };
   }
 
-  // Presentation: the entire ground plane is the camera background color
-  // (grass). Dirt patches are filled diamond polygons batched into a single
-  // Graphics object, so adjacent dirt cells merge into one continuous shape
-  // with no internal seams. No per-cell decorations — keeping object count
-  // tiny (one Graphics object total for the ground) avoids the first-move
-  // stutter that came from spawning thousands of decoration objects.
+  // Tile sprites are drawn directly from the AI-painted atlas. Decorations
+  // (flowers / grass tufts / pebbles) are batched into ONE Graphics object
+  // at a single below-player depth so we don't pay for thousands of game
+  // objects — this is what made first-move FPS stutter before.
   private drawTileGrid(): void {
-    const DIRT_COLOR = 0x8a6a47;
     const BORDER_COLOR = 0x2d3520;
-    const dirt = this.add.graphics();
-    dirt.setDepth(-1000);
-    dirt.fillStyle(DIRT_COLOR, 1);
+    const decor = this.add.graphics();
+    decor.setDepth(-500);
+    for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
+      for (let iy = -GRID_RADIUS; iy <= GRID_RADIUS; iy++) {
+        const { x, y } = isoToScreen(ix, iy);
+        const tileName = tileAt(ix, iy);
+        const img = this.add.image(x, y, TILE_ATLAS_KEY, tileName);
+        img.setOrigin(0.5, 0.5);
+        img.setDepth(worldObjectDepth(y) - 1000);
+        this.paintDecorInto(decor, ix, iy, x, y, tileName);
+      }
+    }
 
     // Visible border around the playable iso area: 4 corners of the iso
     // bounds projected to screen form a diamond. Player clamping below keeps
@@ -191,23 +198,34 @@ export class GameScene extends Phaser.Scene {
     ];
     border.strokePoints([c[0], c[1], c[2], c[3]], true, true);
     border.setDepth(-900);
-    const halfW = TILE_WIDTH / 2;
-    const halfH = TILE_HEIGHT / 2;
-    for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
-      for (let iy = -GRID_RADIUS; iy <= GRID_RADIUS; iy++) {
-        if (!tileAt(ix, iy).startsWith("dirt")) continue;
-        const { x, y } = isoToScreen(ix, iy);
-        dirt.fillPoints(
-          [
-            { x: x - halfW, y },
-            { x, y: y - halfH },
-            { x: x + halfW, y },
-            { x, y: y + halfH },
-          ],
-          true,
-          true
-        );
-      }
+  }
+
+  private paintDecorInto(g: Phaser.GameObjects.Graphics, ix: number, iy: number, x: number, y: number, tile: string): void {
+    if (ix === 0 && iy === 0) return;
+    if (!tile.startsWith("grass")) return;
+    const hash = ((ix * 2654435761) ^ (iy * 40503)) >>> 0;
+    const bucket = hash % 100;
+    if (bucket >= 28) return;
+    const jitter = ((hash >>> 8) % 9) - 4;
+    const px = x + jitter;
+    const py = y + (((hash >>> 16) % 7) - 3);
+    if (bucket < 10) {
+      g.fillStyle(0xfff2a8, 1);
+      g.fillCircle(px, py, 2);
+      g.fillStyle(0xf2c14e, 1);
+      g.fillCircle(px, py, 1);
+    } else if (bucket < 20) {
+      g.lineStyle(2, 0x4a7b3a, 1);
+      g.beginPath();
+      g.moveTo(px - 3, py + 2); g.lineTo(px - 2, py - 4);
+      g.moveTo(px, py + 2);     g.lineTo(px, py - 5);
+      g.moveTo(px + 3, py + 2); g.lineTo(px + 2, py - 4);
+      g.strokePath();
+    } else {
+      g.fillStyle(0x444a4a, 1);
+      g.fillEllipse(px, py, 6, 3);
+      g.fillStyle(0x6b7474, 1);
+      g.fillEllipse(px - 1, py - 1, 3, 1);
     }
   }
 
