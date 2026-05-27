@@ -11,8 +11,9 @@ export async function createGame(parent: HTMLElement): Promise<Phaser.Game> {
       width: parent.clientWidth || window.innerWidth,
       height: parent.clientHeight || window.innerHeight,
     },
-    pixelArt: false,
-    render: { antialias: true },
+    pixelArt: true,
+    roundPixels: true,
+    render: { antialias: false, pixelArt: true, roundPixels: true },
     scene: [GameScene],
   });
   return game;
