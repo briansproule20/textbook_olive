@@ -1,3 +1,4 @@
+export const GRID_RADIUS = 50;
 export const TILE_FRAMES = ["grass", "grass2", "dirt", "dirt2"] as const;
 export type TileFrame = (typeof TILE_FRAMES)[number];
 export const TILE_ATLAS_KEY = "tiles";

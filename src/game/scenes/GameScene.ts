@@ -3,11 +3,12 @@ import {
   TILE_WIDTH,
   TILE_HEIGHT,
   isoToScreen,
+  screenToIso,
   isoInputToScreenVector,
   worldObjectDepth,
   BASELINE_OFFSET,
 } from "../world/isometricWorld";
-import { tileAt } from "../world/tiles";
+import { GRID_RADIUS, tileAt } from "../world/tiles";
 import {
   atlasKey,
   CHARACTER_LABELS,
@@ -45,7 +46,6 @@ interface RemotePlayer {
 }
 
 const MOVE_SPEED = 180;
-const GRID_RADIUS = 50;
 const CHAR_SCALE = 0.55;
 
 export class GameScene extends Phaser.Scene {
@@ -171,9 +171,26 @@ export class GameScene extends Phaser.Scene {
   // stutter that came from spawning thousands of decoration objects.
   private drawTileGrid(): void {
     const DIRT_COLOR = 0x8a6a47;
+    const BORDER_COLOR = 0x2d3520;
     const dirt = this.add.graphics();
     dirt.setDepth(-1000);
     dirt.fillStyle(DIRT_COLOR, 1);
+
+    // Visible border around the playable iso area: 4 corners of the iso
+    // bounds projected to screen form a diamond. Player clamping below keeps
+    // the character inside this diamond so the border represents the actual
+    // confine zone, not decoration.
+    const border = this.add.graphics();
+    border.lineStyle(4, BORDER_COLOR, 1);
+    const R = GRID_RADIUS + 0.5;
+    const c = [
+      isoToScreen(-R, -R),
+      isoToScreen(R, -R),
+      isoToScreen(R, R),
+      isoToScreen(-R, R),
+    ];
+    border.strokePoints([c[0], c[1], c[2], c[3]], true, true);
+    border.setDepth(-900);
     const halfW = TILE_WIDTH / 2;
     const halfH = TILE_HEIGHT / 2;
     for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
@@ -254,6 +271,25 @@ export class GameScene extends Phaser.Scene {
       this.playAnim("idle", this.facing);
     }
 
+    // Clamp player to the iso playable area. The player.y has BASELINE_OFFSET
+    // built in (sprite anchored by feet, then shifted), so we project the
+    // FOOT position to iso space, clamp, project back, and re-apply the offset.
+    const footY = this.player.y - BASELINE_OFFSET * CHAR_SCALE;
+    const iso = screenToIso(this.player.x, footY);
+    const limit = GRID_RADIUS;
+    let clampedIsoX = iso.x;
+    let clampedIsoY = iso.y;
+    if (clampedIsoX > limit) clampedIsoX = limit;
+    if (clampedIsoX < -limit) clampedIsoX = -limit;
+    if (clampedIsoY > limit) clampedIsoY = limit;
+    if (clampedIsoY < -limit) clampedIsoY = -limit;
+    if (clampedIsoX !== iso.x || clampedIsoY !== iso.y) {
+      const back = isoToScreen(clampedIsoX, clampedIsoY);
+      this.player.x = back.x;
+      this.player.y = back.y + BASELINE_OFFSET * CHAR_SCALE;
+      this.clickTarget = null;
+    }
+
     this.player.setDepth(worldObjectDepth(this.player.y));
     this.playerLabel.setPosition(this.player.x, this.player.y - this.player.displayHeight);
     this.playerLabel.setDepth(this.player.depth + 1);
@@ -269,12 +305,16 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (typeof window !== "undefined") {
+      const footY2 = this.player.y - BASELINE_OFFSET * CHAR_SCALE;
+      const isoNow = screenToIso(this.player.x, footY2);
       (window as unknown as { __gameStatus?: object }).__gameStatus = {
         action: this.action.toUpperCase(),
         facing: this.facing.toUpperCase(),
         speed: Math.round(speed),
         x: Math.round(this.player.x),
         y: Math.round(this.player.y),
+        isoX: Math.round(isoNow.x),
+        isoY: Math.round(isoNow.y),
         fps: Math.round(this.game.loop.actualFps),
       };
     }

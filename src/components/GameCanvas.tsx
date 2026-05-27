@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Hud from "./Hud";
+import MiniMap from "./MiniMap";
 import SpritePicker from "./SpritePicker";
 
 export default function GameCanvas() {
@@ -31,6 +32,7 @@ export default function GameCanvas() {
       <div id="game-root" ref={rootRef} />
       <SpritePicker />
       <Hud />
+      <MiniMap />
     </>
   );
 }

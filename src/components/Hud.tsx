@@ -8,6 +8,8 @@ interface GameStatus {
   speed: number;
   x: number;
   y: number;
+  isoX: number;
+  isoY: number;
   fps: number;
 }
 
@@ -17,6 +19,8 @@ const DEFAULT_STATUS: GameStatus = {
   speed: 0,
   x: 0,
   y: 0,
+  isoX: 0,
+  isoY: 0,
   fps: 0,
 };
 
@@ -118,7 +122,7 @@ export default function Hud() {
     >
       <Pill icon={<PulseIcon />} label={status.action} />
       <Pill icon={<CompassIcon />} label={status.facing} />
-      <Pill icon={<CrosshairIcon />} label={`${status.x}, ${status.y}`} />
+      <Pill icon={<CrosshairIcon />} label={`${status.isoX}, ${status.isoY}`} />
       <Pill label={`${status.fps} FPS`} />
     </div>
   );
