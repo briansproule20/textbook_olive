@@ -480,27 +480,36 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Trees and stones block movement (even when depleted — the visual stays).
-  // The check is "tight": we round the foot iso to a tile, then reject if the
-  // foot is within COLLISION_PAD of the obstacle tile's center. This gives a
-  // small buffer so the sprite body never visually overlaps the obstacle.
+  // Omnidirectional circular collision in iso tile space. Trees and stones
+  // each have an iso center at their tile's (ix, iy). The player's foot has an
+  // iso position too. Block movement if the foot is within COLLISION_RADIUS
+  // (Euclidean) of any obstacle's center. Using a true circle (not a square)
+  // means the player is held the same distance from the obstacle on every
+  // approach — cardinal, diagonal, or anywhere in between.
+  //
+  // 0.85 = roughly player_radius (~0.35) + obstacle_radius (~0.5). Tight
+  // enough to feel snug but wide enough that the sprite body never visually
+  // overlaps the obstacle from any side.
+  private static readonly COLLISION_RADIUS = 0.85;
+  private static readonly COLLISION_RADIUS_SQ =
+    GameScene.COLLISION_RADIUS * GameScene.COLLISION_RADIUS;
+
   private tileBlockedAt(screenX: number, screenY: number): boolean {
-    const COLLISION_PAD = 0.7; // ~30% padding around obstacle tile centers
     const footY = screenY - BASELINE_OFFSET * CHAR_SCALE;
     const iso = screenToIso(screenX, footY);
-    // Check the 9 candidate obstacle tiles around the foot (3x3 neighborhood)
-    // and reject if any have an obstacle AND the foot is within the padded
-    // square around that tile's center.
-    const baseX = Math.floor(iso.x);
-    const baseY = Math.floor(iso.y);
-    for (let dx = 0; dx <= 1; dx++) {
-      for (let dy = 0; dy <= 1; dy++) {
+    // Scan the 3x3 (rounded) iso neighborhood — any obstacle further than
+    // COLLISION_RADIUS away can't possibly intersect, so this is the smallest
+    // candidate set we need to check.
+    const baseX = Math.round(iso.x);
+    const baseY = Math.round(iso.y);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
         const tx = baseX + dx;
         const ty = baseY + dy;
         if (!hasTreeAt(tx, ty) && !hasStoneAt(tx, ty)) continue;
-        if (Math.abs(iso.x - tx) < COLLISION_PAD && Math.abs(iso.y - ty) < COLLISION_PAD) {
-          return true;
-        }
+        const ex = iso.x - tx;
+        const ey = iso.y - ty;
+        if (ex * ex + ey * ey < GameScene.COLLISION_RADIUS_SQ) return true;
       }
     }
     return false;
