@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Hud from "./Hud";
 import InventoryModal from "./InventoryModal";
+import MainMenuModal from "./MainMenuModal";
 import MiniMap from "./MiniMap";
 import SaveGameButton from "./SaveGameButton";
 import SpritePicker from "./SpritePicker";
@@ -58,6 +59,7 @@ export default function GameCanvas() {
       <ResourceHud />
       <MiniMap />
       <InventoryModal />
+      <MainMenuModal />
     </>
   );
 }

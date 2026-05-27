@@ -226,9 +226,10 @@ export class GameScene extends Phaser.Scene {
     const delta = dt / 1000;
     let ix = 0;
     let iy = 0;
-    // Suppress movement input while UI overlays (inventory) are open.
-    const inventoryOpen = (window as unknown as { __inventoryOpen?: boolean }).__inventoryOpen === true;
-    if (!inventoryOpen) {
+    // Suppress movement + harvest input while UI overlays (inventory, menu) are open.
+    const w = window as unknown as { __inventoryOpen?: boolean; __menuOpen?: boolean };
+    const uiOpen = w.__inventoryOpen === true || w.__menuOpen === true;
+    if (!uiOpen) {
       if (this.cursors.up.isDown || this.wasd.W.isDown) iy -= 1;
       if (this.cursors.down.isDown || this.wasd.S.isDown) iy += 1;
       if (this.cursors.left.isDown || this.wasd.A.isDown) ix -= 1;
@@ -257,7 +258,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && !this.attacking) {
+    if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && !this.attacking && !uiOpen) {
       this.attacking = true;
       this.action = "attack";
       this.playAnim("attack", this.facing);

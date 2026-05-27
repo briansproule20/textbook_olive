@@ -59,11 +59,43 @@ interface Props {
   onComplete: () => void;
 }
 
+// Restore last-saved name parts + character so "Edit Character" returns the
+// user to a populated form instead of re-randomizing.
+function readSavedParts(): { adj?: string; num?: string; custom?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem("poncho.nameParts");
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as { adj?: string; num?: number; custom?: string };
+    return {
+      adj: typeof parsed.adj === "string" ? parsed.adj : undefined,
+      num: typeof parsed.num === "number" ? String(parsed.num) : undefined,
+      custom: typeof parsed.custom === "string" ? parsed.custom : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function readSavedCharIdx(): number {
+  if (typeof window === "undefined") return CHARACTERS.indexOf(DEFAULT_CHARACTER);
+  try {
+    const raw = window.localStorage.getItem("poncho.character");
+    if (raw && (CHARACTERS as readonly string[]).includes(raw)) {
+      return CHARACTERS.indexOf(raw as CharacterId);
+    }
+  } catch {
+    // ignore
+  }
+  return CHARACTERS.indexOf(DEFAULT_CHARACTER);
+}
+
 export default function WelcomeScreen({ onComplete }: Props) {
-  const [adj, setAdj] = useState<string>(() => ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]);
-  const [custom, setCustom] = useState<string>("");
-  const [num, setNum] = useState<string>(() => String(Math.floor(Math.random() * 90) + 10));
-  const [charIdx, setCharIdx] = useState<number>(() => CHARACTERS.indexOf(DEFAULT_CHARACTER));
+  const saved = typeof window !== "undefined" ? readSavedParts() : {};
+  const [adj, setAdj] = useState<string>(() => saved.adj ?? ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]);
+  const [custom, setCustom] = useState<string>(() => saved.custom ?? "");
+  const [num, setNum] = useState<string>(() => saved.num ?? String(Math.floor(Math.random() * 90) + 10));
+  const [charIdx, setCharIdx] = useState<number>(() => readSavedCharIdx());
 
   const charId: CharacterId = CHARACTERS[charIdx];
   const charLabel = CHARACTER_LABELS[charId];
