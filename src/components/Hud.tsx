@@ -112,7 +112,7 @@ export default function Hud() {
     <div
       style={{
         position: "fixed",
-        top: 12,
+        top: 60,
         right: 12,
         zIndex: 10,
         display: "flex",

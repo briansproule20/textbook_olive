@@ -241,10 +241,14 @@ export class GameScene extends Phaser.Scene {
     const delta = dt / 1000;
     let ix = 0;
     let iy = 0;
-    if (this.cursors.up.isDown || this.wasd.W.isDown) iy -= 1;
-    if (this.cursors.down.isDown || this.wasd.S.isDown) iy += 1;
-    if (this.cursors.left.isDown || this.wasd.A.isDown) ix -= 1;
-    if (this.cursors.right.isDown || this.wasd.D.isDown) ix += 1;
+    // Suppress movement input while UI overlays (inventory) are open.
+    const inventoryOpen = (window as unknown as { __inventoryOpen?: boolean }).__inventoryOpen === true;
+    if (!inventoryOpen) {
+      if (this.cursors.up.isDown || this.wasd.W.isDown) iy -= 1;
+      if (this.cursors.down.isDown || this.wasd.S.isDown) iy += 1;
+      if (this.cursors.left.isDown || this.wasd.A.isDown) ix -= 1;
+      if (this.cursors.right.isDown || this.wasd.D.isDown) ix += 1;
+    }
 
     let moveVec = { x: 0, y: 0 };
     let moving = false;

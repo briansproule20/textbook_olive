@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hud from "./Hud";
+import InventoryModal from "./InventoryModal";
 import MiniMap from "./MiniMap";
+import SaveGameButton from "./SaveGameButton";
 import SpritePicker from "./SpritePicker";
 import WelcomeScreen from "./WelcomeScreen";
 
@@ -50,8 +52,10 @@ export default function GameCanvas() {
     <>
       <div id="game-root" ref={rootRef} />
       <SpritePicker />
+      <SaveGameButton />
       <Hud />
       <MiniMap />
+      <InventoryModal />
     </>
   );
 }
