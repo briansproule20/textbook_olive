@@ -442,10 +442,12 @@ function flattenTileLighting(img) {
       const edgeT = dx + dy;
       const lum = (img.data[i] + img.data[i + 1] + img.data[i + 2]) / 3;
 
-      // Edge band: blend toward the interior MEAN color so no tile perimeter
-      // is darker than the interior. Strongest at the outermost rim.
-      if (edgeT > 0.75) {
-        const t = Math.min(1, (edgeT - 0.75) / 0.25);
+      // Edge band: replace the painted dark rim with the interior MEAN color
+      // so adjacent tiles meet with identical brightness, eliminating grid
+      // lines/drop shadows. The band starts at 50% from center and ramps to
+      // FULL replacement (t=1) at the diamond perimeter.
+      if (edgeT > 0.5) {
+        const t = Math.min(1, (edgeT - 0.5) / 0.5);
         img.data[i]     = Math.round(img.data[i]     * (1 - t) + meanR * t);
         img.data[i + 1] = Math.round(img.data[i + 1] * (1 - t) + meanG * t);
         img.data[i + 2] = Math.round(img.data[i + 2] * (1 - t) + meanB * t);

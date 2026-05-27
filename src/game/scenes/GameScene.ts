@@ -44,7 +44,6 @@ interface RemotePlayer {
 const MOVE_SPEED = 180;
 const GRID_RADIUS = 50;
 const CHAR_SCALE = 0.55;
-const DECOR_DEPTH_BOOST = 100;
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -183,7 +182,6 @@ export class GameScene extends Phaser.Scene {
     const bucket = hash % 100;
     if (bucket >= 28) return;
     const g = this.add.graphics();
-    g.setDepth(worldObjectDepth(y) - 500);
     const jitter = ((hash >>> 8) % 9) - 4;
     const px = x + jitter;
     const py = y + (((hash >>> 16) % 7) - 3);
@@ -208,8 +206,12 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(0x6b7474, 1);
       g.fillEllipse(px - 1, py - 1, 3, 1);
     }
-    // Make sure decor draws above its tile but below the player when player passes.
-    g.setDepth(worldObjectDepth(y) + DECOR_DEPTH_BOOST);
+    // Decoration sorts by its own Y, same as the player. When the player is
+    // south of the decoration the player wins; when north, decoration wins.
+    // Subtract a small constant so they never tie at the same Y (decoration
+    // sits "lower" so the player walks IN FRONT of grass at equal Y, which
+    // looks right since grass is on the ground and the player's feet are too).
+    g.setDepth(worldObjectDepth(y) - 1);
   }
 
   private playAnim(action: Action, direction: Direction): void {
