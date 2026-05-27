@@ -126,11 +126,41 @@ export default function WelcomeScreen({ onComplete }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [prevChar, nextChar, ready, start]);
 
+  // Generated isometric grass backdrop so previewed sprites don't sit on a
+  // flat dark field — keeps the in-game atlases as bare cutouts but gives the
+  // welcome screen something to read against.
+  const sceneBg = useMemo(() => {
+    const tileW = 64;
+    const tileH = 32;
+    const svg = `\
+<svg xmlns='http://www.w3.org/2000/svg' width='${tileW}' height='${tileH}' viewBox='0 0 ${tileW} ${tileH}'>\
+<defs>\
+<linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>\
+<stop offset='0' stop-color='#6fa256'/>\
+<stop offset='1' stop-color='#4f7a3d'/>\
+</linearGradient>\
+</defs>\
+<rect width='${tileW}' height='${tileH}' fill='url(#g)'/>\
+<path d='M${tileW / 2} 1 L${tileW - 1} ${tileH / 2} L${tileW / 2} ${tileH - 1} L1 ${tileH / 2} Z' fill='none' stroke='rgba(255,255,255,0.05)' stroke-width='1'/>\
+<circle cx='14' cy='8' r='1' fill='#f2c14e' opacity='0.55'/>\
+<circle cx='48' cy='22' r='1' fill='#fff2a8' opacity='0.6'/>\
+</svg>`;
+    const encoded = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    return {
+      backgroundImage: `radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 35%, rgba(0,0,0,0.55) 100%), url("${encoded}")`,
+      backgroundSize: "auto, 64px 32px",
+      backgroundRepeat: "no-repeat, repeat",
+    } as const;
+  }, []);
+
+  // Sprite cutout: center the idle_se frame (top-left of atlas) in the box.
   const previewBg = useMemo(() => {
+    const spritePx = ATLAS_NATURAL * PREVIEW_RATIO;
+    const offset = (PREVIEW_PX - FRAME_NATURAL * PREVIEW_RATIO) / 2;
     return {
       backgroundImage: `url(/sprites/characters/${charId}/${charId}.png)`,
-      backgroundSize: `${ATLAS_NATURAL * PREVIEW_RATIO}px ${ATLAS_NATURAL * PREVIEW_RATIO}px`,
-      backgroundPosition: "0 0",
+      backgroundSize: `${spritePx}px ${spritePx}px`,
+      backgroundPosition: `${offset}px ${offset + 8}px`,
       backgroundRepeat: "no-repeat",
       imageRendering: "pixelated" as const,
     };
@@ -167,7 +197,7 @@ export default function WelcomeScreen({ onComplete }: Props) {
       >
         <header style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: COLORS.accent }}>
-            Ponchoverse
+            Placeholder Hero
           </div>
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.4, margin: 0 }}>Build your character.</h1>
           <p style={{ fontSize: 14, color: COLORS.muted, margin: 0 }}>
@@ -198,6 +228,7 @@ export default function WelcomeScreen({ onComplete }: Props) {
                 borderRadius: 16,
                 overflow: "hidden",
                 position: "relative",
+                ...sceneBg,
               }}
             >
               <div style={{ position: "absolute", inset: 0, ...previewBg }} />
