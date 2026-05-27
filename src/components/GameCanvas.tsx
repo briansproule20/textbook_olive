@@ -1,15 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Hud from "./Hud";
 import MiniMap from "./MiniMap";
 import SpritePicker from "./SpritePicker";
+import WelcomeScreen from "./WelcomeScreen";
 
 export default function GameCanvas() {
   const rootRef = useRef<HTMLDivElement>(null);
   const destroyRef = useRef<(() => void) | null>(null);
+  const [welcomeChecked, setWelcomeChecked] = useState(false);
+  const [welcomeDone, setWelcomeDone] = useState(false);
 
   useEffect(() => {
+    try {
+      setWelcomeDone(window.localStorage.getItem("poncho.welcomeShown") === "1");
+    } catch {
+      setWelcomeDone(false);
+    }
+    setWelcomeChecked(true);
+  }, []);
+
+  useEffect(() => {
+    if (!welcomeDone) return;
     let cancelled = false;
     (async () => {
       if (!rootRef.current) return;
@@ -25,7 +38,13 @@ export default function GameCanvas() {
         destroyRef.current = null;
       }
     };
-  }, []);
+  }, [welcomeDone]);
+
+  if (!welcomeChecked) return null;
+
+  if (!welcomeDone) {
+    return <WelcomeScreen onComplete={() => setWelcomeDone(true)} />;
+  }
 
   return (
     <>

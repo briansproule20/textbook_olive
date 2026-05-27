@@ -1,10 +1,30 @@
-const ADJECTIVES = [
+export const ADJECTIVES = [
   "Brave", "Clever", "Daring", "Eager", "Fierce", "Gentle", "Happy", "Iron",
   "Jolly", "Keen", "Lucky", "Mighty", "Noble", "Odd", "Proud", "Quick",
   "Royal", "Swift", "Tough", "Upbeat", "Valiant", "Wise", "Xenial", "Yare",
   "Zesty", "Cosmic", "Mellow", "Plucky", "Rowdy", "Shiny", "Spry", "Stout",
   "Sunny", "Vivid", "Witty", "Bold", "Calm", "Dusty", "Frosty", "Glowing",
 ];
+
+export const ADJECTIVE_PATTERN = /^[A-Z][a-zA-Z]*$/;
+
+export function saveNameParts(adj: string, num: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("poncho.nameParts", JSON.stringify({ adj, num }));
+  } catch {
+    // ignore
+  }
+}
+
+export function hasSavedNameParts(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return !!window.localStorage.getItem("poncho.nameParts");
+  } catch {
+    return false;
+  }
+}
 
 const PARTS_KEY = "poncho.nameParts";
 const LEGACY_FULL_KEY = "poncho.localName";
