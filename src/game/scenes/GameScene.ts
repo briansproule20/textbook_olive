@@ -164,10 +164,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Presentation: the entire ground plane is the camera background color
-  // (grass). Per-tile sprites are NOT rendered — there is no tile grid to
-  // see. Dirt patches are filled diamond polygons batched into a single
+  // (grass). Dirt patches are filled diamond polygons batched into a single
   // Graphics object, so adjacent dirt cells merge into one continuous shape
-  // with no internal seams. Decorations layer on top.
+  // with no internal seams. No per-cell decorations — keeping object count
+  // tiny (one Graphics object total for the ground) avoids the first-move
+  // stutter that came from spawning thousands of decoration objects.
   private drawTileGrid(): void {
     const DIRT_COLOR = 0x8a6a47;
     const dirt = this.add.graphics();
@@ -177,63 +178,20 @@ export class GameScene extends Phaser.Scene {
     const halfH = TILE_HEIGHT / 2;
     for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
       for (let iy = -GRID_RADIUS; iy <= GRID_RADIUS; iy++) {
-        const tileName = tileAt(ix, iy);
+        if (!tileAt(ix, iy).startsWith("dirt")) continue;
         const { x, y } = isoToScreen(ix, iy);
-        if (tileName.startsWith("dirt")) {
-          dirt.fillPoints(
-            [
-              { x: x - halfW, y },
-              { x, y: y - halfH },
-              { x: x + halfW, y },
-              { x, y: y + halfH },
-            ],
-            true,
-            true
-          );
-        }
-        this.drawDecorOn(ix, iy, x, y, tileName);
+        dirt.fillPoints(
+          [
+            { x: x - halfW, y },
+            { x, y: y - halfH },
+            { x: x + halfW, y },
+            { x, y: y + halfH },
+          ],
+          true,
+          true
+        );
       }
     }
-  }
-
-  private drawDecorOn(ix: number, iy: number, x: number, y: number, tile: string): void {
-    // Skip the spawn tile so it never has clutter on the player's exact spot.
-    if (ix === 0 && iy === 0) return;
-    if (!tile.startsWith("grass")) return;
-    const hash = ((ix * 2654435761) ^ (iy * 40503)) >>> 0;
-    const bucket = hash % 100;
-    if (bucket >= 28) return;
-    const g = this.add.graphics();
-    const jitter = ((hash >>> 8) % 9) - 4;
-    const px = x + jitter;
-    const py = y + (((hash >>> 16) % 7) - 3);
-    if (bucket < 10) {
-      // Tiny flower: yellow center, white petals.
-      g.fillStyle(0xfff2a8, 1);
-      g.fillCircle(px, py, 2);
-      g.fillStyle(0xf2c14e, 1);
-      g.fillCircle(px, py, 1);
-    } else if (bucket < 20) {
-      // Grass tuft: three short upward lines.
-      g.lineStyle(2, 0x4a7b3a, 1);
-      g.beginPath();
-      g.moveTo(px - 3, py + 2); g.lineTo(px - 2, py - 4);
-      g.moveTo(px, py + 2);     g.lineTo(px, py - 5);
-      g.moveTo(px + 3, py + 2); g.lineTo(px + 2, py - 4);
-      g.strokePath();
-    } else {
-      // Pebble: small dark ellipse with highlight.
-      g.fillStyle(0x444a4a, 1);
-      g.fillEllipse(px, py, 6, 3);
-      g.fillStyle(0x6b7474, 1);
-      g.fillEllipse(px - 1, py - 1, 3, 1);
-    }
-    // Decoration sorts by its own Y, same as the player. When the player is
-    // south of the decoration the player wins; when north, decoration wins.
-    // Subtract a small constant so they never tie at the same Y (decoration
-    // sits "lower" so the player walks IN FRONT of grass at equal Y, which
-    // looks right since grass is on the ground and the player's feet are too).
-    g.setDepth(worldObjectDepth(y) - 1);
   }
 
   private playAnim(action: Action, direction: Direction): void {
