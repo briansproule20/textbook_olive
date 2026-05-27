@@ -1,35 +1,41 @@
 import Phaser from "phaser";
 import {
-  TILE_WIDTH,
-  TILE_HEIGHT,
   isoToScreen,
   screenToIso,
   isoInputToScreenVector,
   worldObjectDepth,
   BASELINE_OFFSET,
 } from "../world/isometricWorld";
+import { TILE_ATLAS_KEY, tileAt } from "../world/tiles";
 import {
-  ATLAS_KEY,
+  atlasKey,
   DIRECTIONS,
   atlasAnimationKey,
   animationKey,
   directionFromVector,
+  loadSelectedCharacter,
   type Action,
+  type CharacterId,
   type Direction,
 } from "../sprites/characterTextures";
 import { loadOrCreateLocalName } from "../players/playerNames";
 import { MultiplayerClient, type PlayerState } from "../multiplayer/MultiplayerClient";
 
-interface AnimManifestEntry {
+interface AnimSpec {
   key: string;
   frames: number;
   loop: boolean;
 }
 
-interface Manifest {
-  animations: AnimManifestEntry[];
-  frameSize: { w: number; h: number };
-}
+const ANIMATIONS: AnimSpec[] = [
+  { key: "idle_se", frames: 4, loop: true },
+  { key: "walk_se", frames: 4, loop: true },
+  { key: "walk_sw", frames: 4, loop: true },
+  { key: "walk_ne", frames: 4, loop: true },
+  { key: "walk_nw", frames: 4, loop: true },
+  { key: "attack_se", frames: 4, loop: false },
+  { key: "attack_sw", frames: 4, loop: false },
+];
 
 interface RemotePlayer {
   id: string;
@@ -55,30 +61,35 @@ export class GameScene extends Phaser.Scene {
   private attacking = false;
   private mp!: MultiplayerClient;
   private remotes = new Map<string, RemotePlayer>();
-  private manifest!: Manifest;
+  private charId: CharacterId = "cat";
+  private charAtlas = "character-cat";
 
   constructor() {
     super("GameScene");
   }
 
+  init(): void {
+    this.charId = loadSelectedCharacter();
+    this.charAtlas = atlasKey(this.charId);
+  }
+
   preload(): void {
-    this.load.json("character-manifest", "/sprites/character/manifest.json");
+    this.load.atlas(TILE_ATLAS_KEY, "/sprites/tiles/tiles.png", "/sprites/tiles/tiles.json");
     this.load.atlas(
-      ATLAS_KEY,
-      "/sprites/character/character-iso-sheet.png",
-      "/sprites/character/character-iso-sheet.json"
+      this.charAtlas,
+      `/sprites/characters/${this.charId}/${this.charId}.png`,
+      `/sprites/characters/${this.charId}/${this.charId}.json`
     );
   }
 
   create(): void {
-    this.manifest = this.cache.json.get("character-manifest") as Manifest;
     this.createAnimations();
     this.drawTileGrid();
 
     this.localName = loadOrCreateLocalName();
 
     const startScreen = isoToScreen(0, 0);
-    this.player = this.add.sprite(startScreen.x, startScreen.y, ATLAS_KEY, "idle_se_00");
+    this.player = this.add.sprite(startScreen.x, startScreen.y, this.charAtlas, "idle_se_00");
     this.player.setOrigin(0.5, 1);
     this.player.y += BASELINE_OFFSET;
     this.player.setDepth(worldObjectDepth(this.player.y));
@@ -128,12 +139,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createAnimations(): void {
-    for (const anim of this.manifest.animations) {
-      const key = `anim_${anim.key}`;
+    for (const anim of ANIMATIONS) {
+      const key = `anim_${anim.key}_${this.charId}`;
       if (this.anims.exists(key)) continue;
-      const frames = [] as Phaser.Types.Animations.AnimationFrame[];
+      const frames: Phaser.Types.Animations.AnimationFrame[] = [];
       for (let i = 0; i < anim.frames; i++) {
-        frames.push({ key: ATLAS_KEY, frame: `${anim.key}_${String(i).padStart(2, "0")}` });
+        frames.push({ key: this.charAtlas, frame: `${anim.key}_${String(i).padStart(2, "0")}` });
       }
       this.anims.create({
         key,
@@ -144,29 +155,26 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private resolveAnimKey(action: Action, direction: Direction): { key: string; flipX: boolean } {
+    const resolved = atlasAnimationKey(action, direction);
+    // animationKey returns like "anim_idle_se"; suffix charId so multi-character anims don't collide
+    return { key: `${resolved.key}_${this.charId}`, flipX: resolved.flipX };
+  }
+
   private drawTileGrid(): void {
-    const g = this.add.graphics();
-    g.setDepth(-1000);
     for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
       for (let iy = -GRID_RADIUS; iy <= GRID_RADIUS; iy++) {
         const { x, y } = isoToScreen(ix, iy);
-        const shade = (ix + iy) & 1 ? 0x3a3f50 : 0x2e3340;
-        g.fillStyle(shade, 1);
-        g.beginPath();
-        g.moveTo(x, y - TILE_HEIGHT / 2);
-        g.lineTo(x + TILE_WIDTH / 2, y);
-        g.lineTo(x, y + TILE_HEIGHT / 2);
-        g.lineTo(x - TILE_WIDTH / 2, y);
-        g.closePath();
-        g.fillPath();
-        g.lineStyle(1, 0x1f2230, 0.6);
-        g.strokePath();
+        const tileName = tileAt(ix, iy);
+        const img = this.add.image(x, y, TILE_ATLAS_KEY, tileName);
+        img.setOrigin(0.5, 0.25);
+        img.setDepth(worldObjectDepth(y) - 1000);
       }
     }
   }
 
   private playAnim(action: Action, direction: Direction): void {
-    const resolved = atlasAnimationKey(action, direction);
+    const resolved = this.resolveAnimKey(action, direction);
     this.player.setFlipX(resolved.flipX);
     if (this.player.anims.currentAnim?.key !== resolved.key) {
       this.player.play(resolved.key);
@@ -251,7 +259,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleRemoteJoin(id: string, state: PlayerState): void {
     if (this.remotes.has(id)) return;
-    const sprite = this.add.sprite(state.x, state.y, ATLAS_KEY, "idle_se_00");
+    const sprite = this.add.sprite(state.x, state.y, this.charAtlas, "idle_se_00");
     sprite.setOrigin(0.5, 1);
     const label = this.add.text(state.x, state.y - sprite.displayHeight, state.name, {
       fontFamily: "system-ui, sans-serif",
@@ -262,7 +270,7 @@ export class GameScene extends Phaser.Scene {
     });
     label.setOrigin(0.5, 1);
     const dir = (DIRECTIONS as readonly Direction[]).includes(state.facing) ? state.facing : "se";
-    const resolved = atlasAnimationKey(state.action, dir);
+    const resolved = this.resolveAnimKey(state.action, dir);
     sprite.setFlipX(resolved.flipX);
     sprite.play(resolved.key);
     this.remotes.set(id, { id, sprite, label, target: { x: state.x, y: state.y }, state });
@@ -279,7 +287,7 @@ export class GameScene extends Phaser.Scene {
     rp.state = state;
     rp.label.setText(state.name);
     const dir = (DIRECTIONS as readonly Direction[]).includes(state.facing) ? state.facing : "se";
-    const resolved = atlasAnimationKey(state.action, dir);
+    const resolved = this.resolveAnimKey(state.action, dir);
     rp.sprite.setFlipX(resolved.flipX);
     if (rp.sprite.anims.currentAnim?.key !== resolved.key) {
       rp.sprite.play(resolved.key);

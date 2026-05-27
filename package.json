@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run prepare:character-sprites && next build",
+    "build": "npm run prepare:assets && next build",
     "start": "next start",
-    "prepare:character-sprites": "node scripts/prepare-character-sprites.mjs",
+    "prepare:assets": "node scripts/prepare-assets.mjs",
+    "prepare:character-sprites": "npm run prepare:assets",
     "typecheck": "tsc --noEmit",
     "lint": "next lint"
   },

@@ -1,4 +1,34 @@
-export const ATLAS_KEY = "character";
+export const CHARACTERS = ["cat", "aussie"] as const;
+export type CharacterId = (typeof CHARACTERS)[number];
+export const DEFAULT_CHARACTER: CharacterId = "cat";
+const CHARACTER_STORAGE_KEY = "poncho.character";
+
+export function atlasKey(charId: string): string {
+  return `character-${charId}`;
+}
+
+export function loadSelectedCharacter(): CharacterId {
+  if (typeof window === "undefined") return DEFAULT_CHARACTER;
+  try {
+    const raw = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
+    if (raw && (CHARACTERS as readonly string[]).includes(raw)) {
+      return raw as CharacterId;
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_CHARACTER;
+}
+
+export function saveSelectedCharacter(id: CharacterId): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CHARACTER_STORAGE_KEY, id);
+  } catch {
+    // ignore
+  }
+}
+
 export const DIRECTIONS = ["se", "sw", "ne", "nw"] as const;
 export const ACTIONS = ["idle", "walk", "attack"] as const;
 
