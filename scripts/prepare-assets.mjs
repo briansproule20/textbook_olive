@@ -9,11 +9,11 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
 
 const RAW_DIR = path.join(ROOT, "assets/raw");
+const WALKS_DIR = path.join(RAW_DIR, "walks");
 const OUT_ROOT = path.join(ROOT, "public/sprites");
 
 const RAW_TILES = path.join(RAW_DIR, "tiles.png");
-const RAW_CAT = path.join(RAW_DIR, "cat.png");
-const RAW_AUSSIE = path.join(RAW_DIR, "aussie.png");
+const CHARACTERS = ["cat", "aussie"];
 
 const TILE_NAMES = ["grass", "grass2", "dirt", "dirt2"];
 const TILE_CELL = 128;
@@ -25,24 +25,28 @@ const CHAR_BASELINE_Y = 246;
 const CHAR_ROWS = 7;
 const CHAR_COLS = 4;
 
+// Each row in the output sheet is one Phaser animation.
+// `source` says which raw image and frame-strategy to use:
+//   - { kind: "walk", strip: "se", flip: false } → use frames 0..3 from walk se strip
+//   - { kind: "walk", strip: "se", flip: true }  → same strip, horizontally flipped
+//   - { kind: "still", strip: "se", flip: false } → frame 0 of se strip, repeated (for idle/attack)
 const ANIMATIONS = [
-  { key: "idle_se", facing: "se", offsets: [0, -1, -2, -1], loop: true },
-  { key: "walk_se", facing: "se", offsets: [0, -6, 0, -6], loop: true },
-  { key: "walk_sw", facing: "sw", offsets: [0, -6, 0, -6], loop: true },
-  { key: "walk_ne", facing: "ne", offsets: [0, -6, 0, -6], loop: true },
-  { key: "walk_nw", facing: "nw", offsets: [0, -6, 0, -6], loop: true },
-  { key: "attack_se", facing: "se", offsets: [0, 0, 0, 0], loop: false },
-  { key: "attack_sw", facing: "sw", offsets: [0, 0, 0, 0], loop: false },
+  { key: "idle_se", source: { kind: "still", strip: "se", flip: false }, offsets: [0, -1, -2, -1], loop: true },
+  { key: "walk_se", source: { kind: "walk",  strip: "se", flip: false }, offsets: [0, 0, 0, 0], loop: true },
+  { key: "walk_sw", source: { kind: "walk",  strip: "se", flip: true  }, offsets: [0, 0, 0, 0], loop: true },
+  { key: "walk_ne", source: { kind: "walk",  strip: "ne", flip: false }, offsets: [0, 0, 0, 0], loop: true },
+  { key: "walk_nw", source: { kind: "walk",  strip: "ne", flip: true  }, offsets: [0, 0, 0, 0], loop: true },
+  { key: "attack_se", source: { kind: "still", strip: "se", flip: false }, offsets: [0, 0, 0, 0], loop: false },
+  { key: "attack_sw", source: { kind: "still", strip: "se", flip: true  }, offsets: [0, 0, 0, 0], loop: false },
 ];
 
-// Quadrant -> facing mapping per spec.
-// TL = se, TR = sw, BL = ne, BR = nw
-const QUADRANT_FACING = {
-  se: { col: 0, row: 0 },
-  sw: { col: 1, row: 0 },
-  ne: { col: 0, row: 1 },
-  nw: { col: 1, row: 1 },
-};
+// Walk strips are 2x2 grids. Quadrant → walk frame index.
+const STRIP_QUADRANTS = [
+  { col: 0, row: 0 }, // frame 0
+  { col: 1, row: 0 }, // frame 1
+  { col: 0, row: 1 }, // frame 2
+  { col: 1, row: 1 }, // frame 3
+];
 
 const BG_THRESHOLD = 232;
 const BG_SOFT_PASSES = [215, 200, 185, 170, 155, 140];
@@ -219,6 +223,21 @@ function downscaleFit(src, maxW, maxH) {
   return out;
 }
 
+function flipHorizontal(src) {
+  const out = new PNG({ width: src.width, height: src.height });
+  for (let y = 0; y < src.height; y++) {
+    for (let x = 0; x < src.width; x++) {
+      const si = (y * src.width + (src.width - 1 - x)) * 4;
+      const di = (y * src.width + x) * 4;
+      out.data[di] = src.data[si];
+      out.data[di + 1] = src.data[si + 1];
+      out.data[di + 2] = src.data[si + 2];
+      out.data[di + 3] = src.data[si + 3];
+    }
+  }
+  return out;
+}
+
 function blit(dst, src, dx, dy) {
   for (let y = 0; y < src.height; y++) {
     for (let x = 0; x < src.width; x++) {
@@ -331,28 +350,46 @@ async function prepareTiles() {
   return { outPng, outJson, sheetW: sheet.width, sheetH: sheet.height, sizes };
 }
 
-async function prepareCharacter(charId, rawPath) {
-  const src = await readPng(rawPath);
+// Load a 2x2 walk strip (1024x1024 PNG) and return 4 normalized 256x256 frame cells.
+async function loadWalkStrip(stripPath, label) {
+  const src = await readPng(stripPath);
   if (src.width !== 1024 || src.height !== 1024) {
-    throw new Error(`${charId}.png must be 1024x1024, got ${src.width}x${src.height}`);
+    throw new Error(`${label} must be 1024x1024, got ${src.width}x${src.height}`);
   }
   const mask = buildBgMask(src);
-  // build per-facing baseline cell of 256x256
-  const facingCells = {};
-  for (const facing of Object.keys(QUADRANT_FACING)) {
-    const { col, row } = QUADRANT_FACING[facing];
+  const cells = [];
+  for (let i = 0; i < STRIP_QUADRANTS.length; i++) {
+    const { col, row } = STRIP_QUADRANTS[i];
     const qx = col * 512;
     const qy = row * 512;
     const bbox = bboxInQuadrant(src, mask, qx, qy, 512, 512);
-    if (!bbox) throw new Error(`empty quadrant for ${charId}/${facing}`);
+    if (!bbox) throw new Error(`empty quadrant ${i} for ${label}`);
     const cropped = extractCrop(src, mask, qx, qy, bbox);
     const scaled = downscaleFit(cropped, CHAR_INNER, CHAR_INNER);
     const cell = emptyPng(CHAR_FRAME, CHAR_FRAME);
     const dx = Math.floor((CHAR_FRAME - scaled.width) / 2);
     const dy = CHAR_BASELINE_Y - scaled.height;
     blit(cell, scaled, dx, dy);
-    facingCells[facing] = cell;
+    cells.push(cell);
   }
+  return cells;
+}
+
+async function prepareCharacter(charId) {
+  const walkDir = path.join(WALKS_DIR, charId);
+  const sePath = path.join(walkDir, "se.png");
+  const nePath = path.join(walkDir, "ne.png");
+  if (!(await exists(sePath))) throw new Error(`missing walk strip: assets/raw/walks/${charId}/se.png`);
+  if (!(await exists(nePath))) throw new Error(`missing walk strip: assets/raw/walks/${charId}/ne.png`);
+
+  const strips = {
+    se: await loadWalkStrip(sePath, `walks/${charId}/se.png`),
+    ne: await loadWalkStrip(nePath, `walks/${charId}/ne.png`),
+  };
+  const flipped = {
+    se: strips.se.map(flipHorizontal),
+    ne: strips.ne.map(flipHorizontal),
+  };
 
   const sheetW = CHAR_COLS * CHAR_FRAME;
   const sheetH = CHAR_ROWS * CHAR_FRAME;
@@ -361,12 +398,12 @@ async function prepareCharacter(charId, rawPath) {
 
   for (let r = 0; r < ANIMATIONS.length; r++) {
     const anim = ANIMATIONS[r];
-    const base = facingCells[anim.facing];
+    const stripCells = anim.source.flip ? flipped[anim.source.strip] : strips[anim.source.strip];
     for (let c = 0; c < CHAR_COLS; c++) {
+      const base = anim.source.kind === "walk" ? stripCells[c] : stripCells[0];
       const dx = c * CHAR_FRAME;
       const dy = r * CHAR_FRAME;
       const yShift = anim.offsets[c];
-      // blit base into sheet at (dx, dy + yShift)
       blit(sheet, base, dx, dy + yShift);
       const name = `${anim.key}_${String(c).padStart(2, "0")}`;
       frames[name] = {
@@ -408,10 +445,14 @@ async function prepareCharacter(charId, rawPath) {
 async function main() {
   const missing = [];
   if (!(await exists(RAW_TILES))) missing.push("assets/raw/tiles.png");
-  if (!(await exists(RAW_CAT))) missing.push("assets/raw/cat.png");
-  if (!(await exists(RAW_AUSSIE))) missing.push("assets/raw/aussie.png");
+  for (const id of CHARACTERS) {
+    const seP = path.join(WALKS_DIR, id, "se.png");
+    const neP = path.join(WALKS_DIR, id, "ne.png");
+    if (!(await exists(seP))) missing.push(`assets/raw/walks/${id}/se.png`);
+    if (!(await exists(neP))) missing.push(`assets/raw/walks/${id}/ne.png`);
+  }
   if (missing.length) {
-    console.error(`[prep] missing required raw assets: ${missing.join(", ")}`);
+    console.error(`[prep] missing required raw assets:\n  ${missing.join("\n  ")}`);
     process.exit(1);
   }
 
@@ -425,12 +466,9 @@ async function main() {
   }
 
   const charResults = {};
-  for (const [id, raw] of [
-    ["cat", RAW_CAT],
-    ["aussie", RAW_AUSSIE],
-  ]) {
+  for (const id of CHARACTERS) {
     console.log(`[prep] character ${id}...`);
-    const res = await prepareCharacter(id, raw);
+    const res = await prepareCharacter(id);
     console.log(`        sheet: ${res.sheetW}x${res.sheetH}, frames: ${res.frameCount}`);
     console.log(`        png:  ${path.relative(ROOT, res.outPng)}`);
     console.log(`        json: ${path.relative(ROOT, res.outJson)}`);
@@ -439,7 +477,7 @@ async function main() {
 
   const topManifest = {
     tiles: TILE_NAMES,
-    characters: ["cat", "aussie"],
+    characters: CHARACTERS,
     animations: ANIMATIONS.map((a) => ({ key: a.key, frames: CHAR_COLS, loop: a.loop })),
     generated_at: new Date().toISOString(),
   };
