@@ -1,0 +1,141 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { itemCount, subscribeInventory } from "@/game/saves/saveGame";
+import { onHarvest } from "@/game/events";
+
+const LOG_STROKE = "#c9a063";
+const STONE_STROKE = "#9aa3ab";
+
+function LogIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={LOG_STROKE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="6" cy="12" rx="3" ry="9" />
+      <path d="M6 3h12" />
+      <path d="M6 21h12" />
+      <path d="M18 3a3 9 0 0 1 0 18" />
+      <ellipse cx="6" cy="12" rx="1.5" ry="6" />
+    </svg>
+  );
+}
+
+function StoneIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={STONE_STROKE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 17 L3 12 L8 5 L16 5 L21 12 L19 17 L16 19 L8 19 Z" />
+      <path d="M8 5 L11 11 L16 11 L16 5" />
+      <path d="M3 12 L11 11 L19 17" />
+    </svg>
+  );
+}
+
+interface Popup {
+  id: number;
+  text: string;
+}
+
+const POPUP_LIFETIME_MS = 1100;
+
+const PILLS: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: "wood", label: "Wood", icon: <LogIcon /> },
+  { id: "stone", label: "Stone", icon: <StoneIcon /> },
+];
+
+export default function ResourceHud() {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [popups, setPopups] = useState<Popup[]>([]);
+
+  useEffect(() => {
+    const sync = () => {
+      const next: Record<string, number> = {};
+      for (const p of PILLS) next[p.id] = itemCount(p.id);
+      setCounts(next);
+    };
+    sync();
+    const off = subscribeInventory(sync);
+    return off;
+  }, []);
+
+  useEffect(() => {
+    let nextId = 1;
+    const off = onHarvest((e) => {
+      const labelMap: Record<string, string> = { wood: "wood", stone: "stone" };
+      const name = labelMap[e.itemId] ?? e.itemId;
+      const id = nextId++;
+      setPopups((prev) => [...prev, { id, text: `+${e.qty} ${name}` }]);
+      window.setTimeout(() => {
+        setPopups((prev) => prev.filter((p) => p.id !== id));
+      }, POPUP_LIFETIME_MS);
+    });
+    return off;
+  }, []);
+
+  return (
+    <>
+      <div
+        style={{
+          position: "fixed",
+          top: 60,
+          left: 12,
+          zIndex: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          fontFamily: "system-ui, sans-serif",
+          pointerEvents: "none",
+        }}
+      >
+        {PILLS.map((p) => (
+          <div
+            key={p.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              background: "rgba(20, 30, 22, 0.85)",
+              color: "#fff",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+              minWidth: 56,
+            }}
+          >
+            {p.icon}
+            <span>{counts[p.id] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ position: "fixed", inset: 0, zIndex: 9, pointerEvents: "none" }}>
+        {popups.map((p) => (
+          <PopupFloater key={p.id} popup={p} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function PopupFloater({ popup }: { popup: Popup }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "calc(50% - 60px)",
+        transform: "translate(-50%, -50%)",
+        color: "#fff7c0",
+        fontFamily: "system-ui, sans-serif",
+        fontWeight: 800,
+        fontSize: 18,
+        letterSpacing: 0.4,
+        textShadow: "0 2px 6px rgba(0,0,0,0.7), 0 0 2px rgba(0,0,0,0.9)",
+        animation: "poncho-wood-float 1.1s ease-out forwards",
+      }}
+    >
+      {popup.text}
+    </div>
+  );
+}

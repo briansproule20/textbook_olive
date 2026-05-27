@@ -16,6 +16,12 @@ import {
   listAllTreeTiles,
   TREE_MAX_HP,
 } from "../world/trees";
+import {
+  damageStone,
+  getStoneState,
+  hasStoneAt,
+  listAllStoneTiles,
+} from "../world/stones";
 import { addItem } from "../saves/saveGame";
 import { emitHarvest } from "../events";
 import {
@@ -73,6 +79,7 @@ export class GameScene extends Phaser.Scene {
   private charId: CharacterId = "cat";
   private charAtlas = "character-cat";
   private treeImages = new Map<string, Phaser.GameObjects.Image>();
+  private stoneImages = new Map<string, Phaser.GameObjects.Image>();
 
   constructor() {
     super("GameScene");
@@ -91,12 +98,14 @@ export class GameScene extends Phaser.Scene {
       `/sprites/characters/${this.charId}/${this.charId}.json`
     );
     this.load.image("tree", "/sprites/objects/tree.png");
+    this.load.image("stone", "/sprites/objects/stone.png");
   }
 
   create(): void {
     this.createAnimations();
     this.drawTileGrid();
     this.placeTrees();
+    this.placeStones();
 
     this.localName = loadOrCreateLocalName(CHARACTER_LABELS[this.charId]);
 
@@ -256,6 +265,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.refreshTreeVisuals();
+    this.refreshStoneVisuals();
 
     if (moving && !this.attacking) {
       this.facing = directionFromVector(moveVec, this.facing);
@@ -424,17 +434,46 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryHarvestTree(): void {
-    const facing = this.playerFacingTile();
-    // Also accept current tile in case the player is overlapping a tree footprint
-    const candidates = [facing, { ix: facing.ix, iy: facing.iy }];
-    for (const { ix, iy } of candidates) {
-      if (!hasTreeAt(ix, iy)) continue;
+    const { ix, iy } = this.playerFacingTile();
+    if (hasTreeAt(ix, iy)) {
       const wood = damageTree(ix, iy);
       if (wood > 0) {
         addItem({ id: "wood", label: "Wood", qty: wood });
         emitHarvest({ itemId: "wood", qty: wood, screenX: this.player.x, screenY: this.player.y });
       }
       return;
+    }
+    if (hasStoneAt(ix, iy)) {
+      const stone = damageStone(ix, iy);
+      if (stone > 0) {
+        addItem({ id: "stone", label: "Stone", qty: stone });
+        emitHarvest({ itemId: "stone", qty: stone, screenX: this.player.x, screenY: this.player.y });
+      }
+    }
+  }
+
+  private placeStones(): void {
+    if (!this.textures.exists("stone")) return;
+    const stones = listAllStoneTiles();
+    for (const { ix, iy } of stones) {
+      const { x, y } = isoToScreen(ix, iy);
+      const img = this.add.image(x, y, "stone");
+      img.setOrigin(0.5, 0.85);
+      img.setScale(0.22);
+      img.setDepth(worldObjectDepth(y));
+      this.stoneImages.set(`${ix},${iy}`, img);
+    }
+  }
+
+  private refreshStoneVisuals(): void {
+    for (const [key, img] of this.stoneImages.entries()) {
+      const [ixStr, iyStr] = key.split(",");
+      const ix = Number(ixStr);
+      const iy = Number(iyStr);
+      const s = getStoneState(ix, iy);
+      const depleted = s.hp <= 0;
+      const targetAlpha = depleted ? 0.45 : 1;
+      if (img.alpha !== targetAlpha) img.setAlpha(targetAlpha);
     }
   }
 }
