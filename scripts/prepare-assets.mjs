@@ -397,35 +397,63 @@ function clipToDiamond(img) {
   }
 }
 
-// AI-painted tiles include cel-shading: a darker rim along the lower diamond
-// edges that creates a "raised bevel" look when many tiles are tiled together
-// across a map. This pass equalizes brightness — opaque pixels darker than
-// ~85% of the interior median get scaled up toward median brightness while
-// keeping hue, so the tile reads as a fully flat ground sticker.
+// AI-painted tiles include cel-shading: a darker rim along the diamond edges
+// that creates visible grid lines / drop shadows when many tiles are tiled
+// together across a map. This pass equalizes brightness in two phases:
+//   - GLOBAL lift: any opaque pixel darker than ~85% of interior median gets
+//     scaled up to ~92% (preserves bulk texture variation).
+//   - EDGE FLATTEN: pixels near the diamond perimeter (the dark outline ring)
+//     get pushed all the way to the interior median, with their hue preserved
+//     by blending toward the median COLOR. This removes the per-tile shadow
+//     line so tiled grass reads as a continuous flat plane.
 function flattenTileLighting(img) {
   const w = img.width;
   const h = img.height;
   const interiorLums = [];
+  let sumR = 0, sumG = 0, sumB = 0, count = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       if (img.data[i + 3] < 128) continue;
       const dx = Math.abs(x + 0.5 - w / 2) / (w / 2);
       const dy = Math.abs(y + 0.5 - h / 2) / (h / 2);
-      if (dx + dy > 0.6) continue;
+      if (dx + dy > 0.5) continue;
       interiorLums.push((img.data[i] + img.data[i + 1] + img.data[i + 2]) / 3);
+      sumR += img.data[i];
+      sumG += img.data[i + 1];
+      sumB += img.data[i + 2];
+      count += 1;
     }
   }
-  if (interiorLums.length === 0) return;
+  if (count === 0) return;
   interiorLums.sort((a, b) => a - b);
   const median = interiorLums[Math.floor(interiorLums.length / 2)];
+  const meanR = sumR / count;
+  const meanG = sumG / count;
+  const meanB = sumB / count;
   const targetMin = median * 0.92;
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       if (img.data[i + 3] < 128) continue;
+      const dx = Math.abs(x + 0.5 - w / 2) / (w / 2);
+      const dy = Math.abs(y + 0.5 - h / 2) / (h / 2);
+      const edgeT = dx + dy;
       const lum = (img.data[i] + img.data[i + 1] + img.data[i + 2]) / 3;
+
+      // Edge band: blend toward the interior MEAN color so no tile perimeter
+      // is darker than the interior. Strongest at the outermost rim.
+      if (edgeT > 0.75) {
+        const t = Math.min(1, (edgeT - 0.75) / 0.25);
+        img.data[i]     = Math.round(img.data[i]     * (1 - t) + meanR * t);
+        img.data[i + 1] = Math.round(img.data[i + 1] * (1 - t) + meanG * t);
+        img.data[i + 2] = Math.round(img.data[i + 2] * (1 - t) + meanB * t);
+        continue;
+      }
+
+      // Interior: just lift very dark pixels a little so the bulk texture
+      // variation stays but the AI's painted shading doesn't dominate.
       if (lum >= targetMin) continue;
       const scale = targetMin / Math.max(1, lum);
       img.data[i] = Math.min(255, Math.round(img.data[i] * scale));
