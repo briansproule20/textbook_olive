@@ -226,22 +226,7 @@ export default function WelcomeScreen({ onComplete }: Props) {
                 ...sceneBg,
               }}
             >
-              {/* Inline SVG filter: drops near-white pixels to transparent so
-                  any residual white bg in source sprites doesn't show on the
-                  grass tile preview. In-game atlases load raw (no filter). */}
-              <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
-                <filter id="poncho-kill-white" colorInterpolationFilters="sRGB">
-                  <feColorMatrix
-                    type="matrix"
-                    values="1 0 0 0 0
-                            0 1 0 0 0
-                            0 0 1 0 0
-                            -3 -3 -3 0 3"
-                  />
-                  <feComposite in="SourceGraphic" in2="result" operator="in" />
-                </filter>
-              </svg>
-              <div style={{ position: "absolute", inset: 0, ...previewBg, filter: "url(#poncho-kill-white)" }} />
+              <div style={{ position: "absolute", inset: 0, ...previewBg }} />
             </div>
             <button
               type="button"
