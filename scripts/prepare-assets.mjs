@@ -123,7 +123,58 @@ function buildBgMask(src) {
     }
     current = next;
   }
-  return current;
+
+  // Find interior enclosed pockets of unmarked pixels. If a connected component
+  // does NOT touch the image edge AND its average color is near-white (looks
+  // like the AI's background bleeding through gaps in the character — like the
+  // space between a cat's legs), mark the whole component as background.
+  // Color check keeps colorful interior shapes (eyes, mouth, markings) opaque.
+  const visited = new Uint8Array(w * h);
+  const final = new Uint8Array(current);
+  const stack = new Int32Array(w * h);
+  const comp = new Int32Array(w * h);
+  const INTERIOR_BG_MIN = 200;
+  for (let startY = 0; startY < h; startY++) {
+    for (let startX = 0; startX < w; startX++) {
+      const startIdx = startY * w + startX;
+      if (current[startIdx] || visited[startIdx]) continue;
+      let top = 0;
+      let compLen = 0;
+      stack[top++] = startIdx;
+      visited[startIdx] = 1;
+      let touchesEdge = false;
+      let sumR = 0, sumG = 0, sumB = 0, sumMin = 0;
+      while (top > 0) {
+        const idx = stack[--top];
+        comp[compLen++] = idx;
+        const x = idx % w;
+        const y = (idx - x) / w;
+        if (x === 0 || y === 0 || x === w - 1 || y === h - 1) touchesEdge = true;
+        const i = idx * 4;
+        sumR += src.data[i];
+        sumG += src.data[i + 1];
+        sumB += src.data[i + 2];
+        sumMin += Math.min(src.data[i], src.data[i + 1], src.data[i + 2]);
+        const neighbors = [idx - 1, idx + 1, idx - w, idx + w];
+        const xs = [x - 1, x + 1, x, x];
+        const ys = [y, y, y - 1, y + 1];
+        for (let k = 0; k < 4; k++) {
+          const nx = xs[k];
+          const ny = ys[k];
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const nIdx = neighbors[k];
+          if (visited[nIdx] || current[nIdx]) continue;
+          visited[nIdx] = 1;
+          stack[top++] = nIdx;
+        }
+      }
+      if (touchesEdge) continue;
+      const avgMin = sumMin / compLen;
+      if (avgMin < INTERIOR_BG_MIN) continue;
+      for (let i = 0; i < compLen; i++) final[comp[i]] = 1;
+    }
+  }
+  return final;
 }
 
 function getPx(src, x, y) {
