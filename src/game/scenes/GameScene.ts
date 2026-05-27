@@ -439,20 +439,22 @@ export class GameScene extends Phaser.Scene {
     return { ix: ix + dx, iy: iy + dy };
   }
 
-  // Tiles the player can interact with on space: current tile + 4 cardinal
-  // neighbors. The closest live tree/stone wins.
+  // Tiles the player can interact with on space: current tile + all 8
+  // surrounding tiles (cardinal + diagonal). With obstacle collision padding,
+  // the player ends up ~0.7 tiles from any obstacle, so a wider harvest reach
+  // makes the action feel snappy at any approach angle.
   private nearbyTiles(): { ix: number; iy: number }[] {
     const footY = this.player.y - BASELINE_OFFSET * CHAR_SCALE;
     const iso = screenToIso(this.player.x, footY);
     const cx = Math.round(iso.x);
     const cy = Math.round(iso.y);
-    return [
-      { ix: cx, iy: cy },
-      { ix: cx + 1, iy: cy },
-      { ix: cx - 1, iy: cy },
-      { ix: cx, iy: cy + 1 },
-      { ix: cx, iy: cy - 1 },
-    ];
+    const out: { ix: number; iy: number }[] = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        out.push({ ix: cx + dx, iy: cy + dy });
+      }
+    }
+    return out;
   }
 
   private tryHarvestTree(): void {
