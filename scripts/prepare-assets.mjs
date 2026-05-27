@@ -15,7 +15,7 @@ const RAW_TILES = path.join(RAW_DIR, "tiles.png");
 const RAW_CAT = path.join(RAW_DIR, "cat.png");
 const RAW_AUSSIE = path.join(RAW_DIR, "aussie.png");
 
-const TILE_NAMES = ["grass", "dirt", "sand", "farm"];
+const TILE_NAMES = ["grass", "grass2", "dirt", "dirt2"];
 const TILE_CELL = 128;
 const TILE_MAX = 128;
 
@@ -256,9 +256,9 @@ async function prepareTiles() {
   const mask = buildBgMask(src);
   const quadrants = [
     { name: "grass", qx: 0, qy: 0 },
-    { name: "dirt", qx: 512, qy: 0 },
-    { name: "sand", qx: 0, qy: 512 },
-    { name: "farm", qx: 512, qy: 512 },
+    { name: "grass2", qx: 512, qy: 0 },
+    { name: "dirt", qx: 0, qy: 512 },
+    { name: "dirt2", qx: 512, qy: 512 },
   ];
 
   const sheet = emptyPng(TILE_CELL * 4, TILE_CELL);
