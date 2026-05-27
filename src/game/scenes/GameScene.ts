@@ -30,11 +30,8 @@ interface AnimSpec {
 const ANIMATIONS: AnimSpec[] = [
   { key: "idle_se", frames: 4, loop: true },
   { key: "walk_se", frames: 4, loop: true },
-  { key: "walk_sw", frames: 4, loop: true },
   { key: "walk_ne", frames: 4, loop: true },
-  { key: "walk_nw", frames: 4, loop: true },
   { key: "attack_se", frames: 4, loop: false },
-  { key: "attack_sw", frames: 4, loop: false },
 ];
 
 interface RemotePlayer {

@@ -33,22 +33,18 @@ const TILE_H = 64;
 const CHAR_FRAME = 256;
 const CHAR_INNER = 220;
 const CHAR_BASELINE_Y = 246;
-const CHAR_ROWS = 7;
+const CHAR_ROWS = 4;
 const CHAR_COLS = 4;
+const CHAR_TARGET_HEIGHT = 200;
 
-// Each row in the output sheet is one Phaser animation.
-// `source` says which raw image and frame-strategy to use:
-//   - { kind: "walk", strip: "se", flip: false } → use frames 0..3 from walk se strip
-//   - { kind: "walk", strip: "se", flip: true }  → same strip, horizontally flipped
-//   - { kind: "still", strip: "se", flip: false } → frame 0 of se strip, repeated (for idle/attack)
+// Only generate unique source frames per character. SW/NW are produced at
+// runtime by Phaser flipX, so the atlas is half the size and SE/SW are
+// guaranteed to have identical pixel data (just mirrored). Same for NE/NW.
 const ANIMATIONS = [
-  { key: "idle_se", source: { kind: "still", strip: "se", flip: false }, offsets: [0, -1, -2, -1], loop: true },
-  { key: "walk_se", source: { kind: "walk",  strip: "se", flip: false }, offsets: [0, 0, 0, 0], loop: true },
-  { key: "walk_sw", source: { kind: "walk",  strip: "se", flip: true  }, offsets: [0, 0, 0, 0], loop: true },
-  { key: "walk_ne", source: { kind: "walk",  strip: "ne", flip: false }, offsets: [0, 0, 0, 0], loop: true },
-  { key: "walk_nw", source: { kind: "walk",  strip: "ne", flip: true  }, offsets: [0, 0, 0, 0], loop: true },
-  { key: "attack_se", source: { kind: "still", strip: "se", flip: false }, offsets: [0, 0, 0, 0], loop: false },
-  { key: "attack_sw", source: { kind: "still", strip: "se", flip: true  }, offsets: [0, 0, 0, 0], loop: false },
+  { key: "idle_se",   source: { kind: "still", strip: "se" }, offsets: [0, -1, -2, -1], loop: true },
+  { key: "walk_se",   source: { kind: "walk",  strip: "se" }, offsets: [0, 0, 0, 0],     loop: true },
+  { key: "walk_ne",   source: { kind: "walk",  strip: "ne" }, offsets: [0, 0, 0, 0],     loop: true },
+  { key: "attack_se", source: { kind: "still", strip: "se" }, offsets: [0, 0, 0, 0],     loop: false },
 ];
 
 // Walk strips are 2x2 grids. Quadrant → walk frame index.
@@ -526,24 +522,20 @@ async function prepareCharacter(charId) {
     ne: await loadWalkStripRaw(nePath, `walks/${charId}/ne.png`),
   };
 
-  // Compute one scale factor across ALL frames so the character is the same
-  // visual size in every direction and every walk pose. Use the largest
-  // dimension across every crop to constrain to CHAR_INNER.
-  let maxDim = 0;
-  for (const dir of ["se", "ne"]) {
-    for (const c of rawCrops[dir]) {
-      maxDim = Math.max(maxDim, c.width, c.height);
-    }
-  }
-  const scale = Math.min(CHAR_INNER / maxDim, 1);
+  // PER-DIRECTION scale so SE and NE renders are the same VISUAL HEIGHT,
+  // regardless of how big the AI happened to draw the character in each
+  // source. Within a direction, all 4 frames share one scale so leg-lift
+  // variation stays correct. Both directions target CHAR_TARGET_HEIGHT,
+  // capped so we never upscale beyond CHAR_INNER.
+  const scaleForDir = (crops) => {
+    const maxH = Math.max(...crops.map((c) => c.height));
+    const targetH = Math.min(CHAR_TARGET_HEIGHT, CHAR_INNER);
+    return Math.min(targetH / maxH, CHAR_INNER / Math.max(...crops.map((c) => Math.max(c.width, c.height))));
+  };
 
   const strips = {
-    se: bakeCellsAtScale(rawCrops.se, scale),
-    ne: bakeCellsAtScale(rawCrops.ne, scale),
-  };
-  const flipped = {
-    se: strips.se.map(flipHorizontal),
-    ne: strips.ne.map(flipHorizontal),
+    se: bakeCellsAtScale(rawCrops.se, scaleForDir(rawCrops.se)),
+    ne: bakeCellsAtScale(rawCrops.ne, scaleForDir(rawCrops.ne)),
   };
 
   const sheetW = CHAR_COLS * CHAR_FRAME;
@@ -553,7 +545,7 @@ async function prepareCharacter(charId) {
 
   for (let r = 0; r < ANIMATIONS.length; r++) {
     const anim = ANIMATIONS[r];
-    const stripCells = anim.source.flip ? flipped[anim.source.strip] : strips[anim.source.strip];
+    const stripCells = strips[anim.source.strip];
     for (let c = 0; c < CHAR_COLS; c++) {
       const base = anim.source.kind === "walk" ? stripCells[c] : stripCells[0];
       const dx = c * CHAR_FRAME;

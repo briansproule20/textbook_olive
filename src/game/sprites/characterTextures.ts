@@ -59,17 +59,20 @@ export function animationKey(action: Action, direction: Direction): string {
   return `anim_${action}_${direction}`;
 }
 
+// Atlas only contains SE+NE source frames. SW/NW are produced by Phaser flipX
+// at render time so they are pixel-identical to SE/NE (just mirrored), and
+// the visual character size is guaranteed equal between left and right.
 export function atlasAnimationKey(action: Action, direction: Direction): ResolvedAnim {
+  const flip = direction === "sw" || direction === "nw";
   if (action === "idle") {
-    if (direction === "sw" || direction === "nw") return { key: animationKey("idle", "se"), flipX: true };
-    return { key: animationKey("idle", "se"), flipX: false };
+    return { key: animationKey("idle", "se"), flipX: flip };
   }
   if (action === "attack") {
-    if (direction === "ne") return { key: animationKey("attack", "sw"), flipX: true };
-    if (direction === "nw") return { key: animationKey("attack", "se"), flipX: true };
-    return { key: animationKey("attack", direction), flipX: false };
+    return { key: animationKey("attack", "se"), flipX: flip };
   }
-  return { key: animationKey(action, direction), flipX: false };
+  // walk
+  const baseDir: Direction = direction === "ne" || direction === "nw" ? "ne" : "se";
+  return { key: animationKey("walk", baseDir), flipX: flip };
 }
 
 export function directionFromVector(
