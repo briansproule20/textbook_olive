@@ -12,6 +12,19 @@ export const CHARACTERS = [
 ] as const;
 export type CharacterId = (typeof CHARACTERS)[number];
 export const DEFAULT_CHARACTER: CharacterId = "poncho";
+
+export const CHARACTER_LABELS: Record<CharacterId, string> = {
+  poncho: "Poncho",
+  cat: "Black Cat",
+  aussie: "Aussie",
+  penguin: "Penguin",
+  "black-lab": "Black Lab",
+  "yellow-lab": "Yellow Lab",
+  "brown-lab": "Brown Lab",
+  pug: "Pug",
+  "brown-tabby": "Brown Tabby",
+  "orange-tabby": "Orange Tabby",
+};
 const CHARACTER_STORAGE_KEY = "poncho.character";
 
 export function atlasKey(charId: string): string {

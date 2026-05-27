@@ -3,24 +3,12 @@
 import { useEffect, useState } from "react";
 import {
   CHARACTERS,
+  CHARACTER_LABELS,
   DEFAULT_CHARACTER,
   loadSelectedCharacter,
   saveSelectedCharacter,
   type CharacterId,
 } from "@/game/sprites/characterTextures";
-
-const CHAR_LABEL: Record<CharacterId, string> = {
-  poncho: "Poncho",
-  cat: "Black Cat",
-  aussie: "Aussie",
-  penguin: "Penguin",
-  "black-lab": "Black Lab",
-  "yellow-lab": "Yellow Lab",
-  "brown-lab": "Brown Lab",
-  pug: "Pug",
-  "brown-tabby": "Brown Tabby",
-  "orange-tabby": "Orange Tabby",
-};
 
 export default function SpritePicker() {
   const [selected, setSelected] = useState<CharacterId>(DEFAULT_CHARACTER);
@@ -88,7 +76,7 @@ export default function SpritePicker() {
       >
         {CHARACTERS.map((id) => (
           <option key={id} value={id} style={{ background: "#1f2f24", color: "#fff" }}>
-            {CHAR_LABEL[id]}
+            {CHARACTER_LABELS[id]}
           </option>
         ))}
       </select>

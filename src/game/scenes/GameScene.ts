@@ -10,6 +10,7 @@ import {
 import { tileAt } from "../world/tiles";
 import {
   atlasKey,
+  CHARACTER_LABELS,
   DIRECTIONS,
   atlasAnimationKey,
   animationKey,
@@ -84,7 +85,7 @@ export class GameScene extends Phaser.Scene {
     this.createAnimations();
     this.drawTileGrid();
 
-    this.localName = loadOrCreateLocalName();
+    this.localName = loadOrCreateLocalName(CHARACTER_LABELS[this.charId]);
 
     const startScreen = isoToScreen(0, 0);
     this.player = this.add.sprite(startScreen.x, startScreen.y, this.charAtlas, "idle_se_00");

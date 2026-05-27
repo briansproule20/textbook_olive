@@ -6,27 +6,72 @@ const ADJECTIVES = [
   "Sunny", "Vivid", "Witty", "Bold", "Calm", "Dusty", "Frosty", "Glowing",
 ];
 
-const STORAGE_KEY = "poncho.localName";
+const PARTS_KEY = "poncho.nameParts";
+const LEGACY_FULL_KEY = "poncho.localName";
 
-export function generatePonchoName(): string {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const n = Math.floor(Math.random() * 90) + 10;
-  return `${adj} Poncho ${n}`;
+interface NameParts {
+  adj: string;
+  num: number;
 }
 
-export function isValidPonchoName(name: string): boolean {
-  return /^[a-zA-Z]+ Poncho \d{2}$/.test(name);
+function randomParts(): NameParts {
+  return {
+    adj: ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)],
+    num: Math.floor(Math.random() * 90) + 10,
+  };
 }
 
-export function loadOrCreateLocalName(): string {
-  if (typeof window === "undefined") return generatePonchoName();
+function isValidParts(value: unknown): value is NameParts {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.adj === "string" &&
+    /^[A-Z][a-zA-Z]+$/.test(v.adj) &&
+    typeof v.num === "number" &&
+    v.num >= 10 &&
+    v.num <= 99
+  );
+}
+
+function loadOrCreateParts(): NameParts {
+  if (typeof window === "undefined") return randomParts();
   try {
-    const existing = window.localStorage.getItem(STORAGE_KEY);
-    if (existing && isValidPonchoName(existing)) return existing;
-  } catch {}
-  const fresh = generatePonchoName();
+    const raw = window.localStorage.getItem(PARTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isValidParts(parsed)) return parsed;
+    }
+    // Migrate legacy "<Adj> Poncho NN" names: keep the adjective and number,
+    // drop the noun. The new render path supplies the active character label.
+    const legacy = window.localStorage.getItem(LEGACY_FULL_KEY);
+    if (legacy) {
+      const m = /^([A-Z][a-zA-Z]+) Poncho (\d{2})$/.exec(legacy);
+      if (m) {
+        const migrated: NameParts = { adj: m[1], num: Number(m[2]) };
+        window.localStorage.setItem(PARTS_KEY, JSON.stringify(migrated));
+        return migrated;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  const fresh = randomParts();
   try {
-    window.localStorage.setItem(STORAGE_KEY, fresh);
-  } catch {}
+    window.localStorage.setItem(PARTS_KEY, JSON.stringify(fresh));
+  } catch {
+    // ignore
+  }
   return fresh;
+}
+
+export function composeName(parts: NameParts, charLabel: string): string {
+  return `${parts.adj} ${charLabel} ${parts.num}`;
+}
+
+export function loadOrCreateLocalName(charLabel: string): string {
+  return composeName(loadOrCreateParts(), charLabel);
+}
+
+export function isValidPlayerName(name: string): boolean {
+  return /^[A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)+ \d{2}$/.test(name);
 }
