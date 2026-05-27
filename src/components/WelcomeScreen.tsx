@@ -131,14 +131,11 @@ export default function WelcomeScreen({ onComplete }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [prevChar, nextChar, ready, start]);
 
-  // Real generated grass tile from the asset prep pipeline. Tiles are 128x64
-  // 2:1 isometric — repeat them with a soft vignette so the preview looks
-  // like the in-game ground without the welcome screen needing its own art.
+  // Flat grass green for the preview backdrop. No tiled iso pattern, no
+  // vignette — the user wants the whole box uniformly green so the sprite
+  // reads cleanly without competing visuals.
   const sceneBg = useMemo(() => ({
-    backgroundImage: `radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.45) 100%), url("/sprites/tiles/grass.png")`,
-    backgroundSize: "auto, 128px 64px",
-    backgroundRepeat: "no-repeat, repeat",
-    imageRendering: "pixelated" as const,
+    background: "#5e8f48",
   }), []);
 
   // Sprite cutout. Character body in the 256x256 frame is centered horizontally
@@ -218,7 +215,6 @@ export default function WelcomeScreen({ onComplete }: Props) {
               style={{
                 width: PREVIEW_PX,
                 height: PREVIEW_PX,
-                background: COLORS.field,
                 border: `1px solid ${COLORS.fieldBorder}`,
                 borderRadius: 16,
                 overflow: "hidden",
