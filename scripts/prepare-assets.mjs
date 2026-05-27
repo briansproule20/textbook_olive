@@ -539,7 +539,6 @@ async function prepareTiles() {
     const cropped = extractCrop(src, mask, q.qx, q.qy, bbox);
     const scaled = downscaleExact(cropped, TILE_W, TILE_H);
     clipToDiamond(scaled);
-    flattenTileLighting(scaled);
     const cellX = idx * TILE_W;
     blit(sheet, scaled, cellX, 0);
     frames[q.name] = {

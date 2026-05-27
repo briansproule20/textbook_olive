@@ -1,11 +1,13 @@
 import Phaser from "phaser";
 import {
+  TILE_WIDTH,
+  TILE_HEIGHT,
   isoToScreen,
   isoInputToScreenVector,
   worldObjectDepth,
   BASELINE_OFFSET,
 } from "../world/isometricWorld";
-import { TILE_ATLAS_KEY, tileAt } from "../world/tiles";
+import { tileAt } from "../world/tiles";
 import {
   atlasKey,
   DIRECTIONS,
@@ -71,7 +73,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.atlas(TILE_ATLAS_KEY, "/sprites/tiles/tiles.png", "/sprites/tiles/tiles.json");
     this.load.atlas(
       this.charAtlas,
       `/sprites/characters/${this.charId}/${this.charId}.png`,
@@ -161,14 +162,34 @@ export class GameScene extends Phaser.Scene {
     return { key: `${resolved.key}_${this.charId}`, flipX: resolved.flipX };
   }
 
+  // Presentation: the entire ground plane is the camera background color
+  // (grass). Per-tile sprites are NOT rendered — there is no tile grid to
+  // see. Dirt patches are filled diamond polygons batched into a single
+  // Graphics object, so adjacent dirt cells merge into one continuous shape
+  // with no internal seams. Decorations layer on top.
   private drawTileGrid(): void {
+    const DIRT_COLOR = 0x8a6a47;
+    const dirt = this.add.graphics();
+    dirt.setDepth(-1000);
+    dirt.fillStyle(DIRT_COLOR, 1);
+    const halfW = TILE_WIDTH / 2;
+    const halfH = TILE_HEIGHT / 2;
     for (let ix = -GRID_RADIUS; ix <= GRID_RADIUS; ix++) {
       for (let iy = -GRID_RADIUS; iy <= GRID_RADIUS; iy++) {
-        const { x, y } = isoToScreen(ix, iy);
         const tileName = tileAt(ix, iy);
-        const img = this.add.image(x, y, TILE_ATLAS_KEY, tileName);
-        img.setOrigin(0.5, 0.5);
-        img.setDepth(worldObjectDepth(y) - 1000);
+        const { x, y } = isoToScreen(ix, iy);
+        if (tileName.startsWith("dirt")) {
+          dirt.fillPoints(
+            [
+              { x: x - halfW, y },
+              { x, y: y - halfH },
+              { x: x + halfW, y },
+              { x, y: y + halfH },
+            ],
+            true,
+            true
+          );
+        }
         this.drawDecorOn(ix, iy, x, y, tileName);
       }
     }
