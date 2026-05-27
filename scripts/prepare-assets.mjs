@@ -279,7 +279,7 @@ async function prepareTiles() {
     const scaled = downscaleFit(cropped, TILE_MAX, TILE_MAX);
     const cellX = idx * TILE_CELL;
     const dx = cellX + Math.floor((TILE_CELL - scaled.width) / 2);
-    const dy = TILE_CELL - scaled.height;
+    const dy = 0;
     blit(sheet, scaled, dx, dy);
     frames[q.name] = {
       frame: { x: cellX, y: 0, w: TILE_CELL, h: TILE_CELL },

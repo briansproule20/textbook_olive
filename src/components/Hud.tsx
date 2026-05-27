@@ -127,7 +127,6 @@ export default function Hud() {
     >
       <Pill icon={<PulseIcon />} label={status.action} />
       <Pill icon={<CompassIcon />} label={status.facing} />
-      <Pill icon={<SpeedIcon />} label={String(status.speed)} />
       <Pill icon={<CrosshairIcon />} label={`${status.x}, ${status.y}`} />
       <Pill label={`${status.fps} FPS`} />
     </div>
