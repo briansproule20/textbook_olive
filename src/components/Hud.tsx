@@ -95,6 +95,7 @@ function Pill({ icon, label }: PillProps) {
 }
 
 const CHAR_LABEL: Record<CharacterId, string> = {
+  poncho: "Poncho",
   cat: "Cat",
   aussie: "Aussie",
   penguin: "Penguin",

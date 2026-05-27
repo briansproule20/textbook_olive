@@ -1,4 +1,5 @@
 export const CHARACTERS = [
+  "poncho",
   "cat",
   "aussie",
   "penguin",
@@ -10,7 +11,7 @@ export const CHARACTERS = [
   "orange-tabby",
 ] as const;
 export type CharacterId = (typeof CHARACTERS)[number];
-export const DEFAULT_CHARACTER: CharacterId = "cat";
+export const DEFAULT_CHARACTER: CharacterId = "poncho";
 const CHARACTER_STORAGE_KEY = "poncho.character";
 
 export function atlasKey(charId: string): string {

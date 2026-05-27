@@ -14,6 +14,7 @@ const OUT_ROOT = path.join(ROOT, "public/sprites");
 
 const RAW_TILES = path.join(RAW_DIR, "tiles.png");
 const CHARACTERS = [
+  "poncho",
   "cat",
   "aussie",
   "penguin",

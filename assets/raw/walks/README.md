@@ -25,6 +25,22 @@ assets/raw/walks/
    - `CHARACTERS` array in `src/game/sprites/characterTextures.ts`
 3. Run `npm run prepare:assets` and `npm run build`. The new character appears in the picker.
 
+## Template character: Poncho the mule
+
+Poncho is the canonical reference character for this game. New characters should
+inherit Poncho's visual conventions:
+
+- isometric 3/4 view (not top-down, not pure side)
+- 2:1 aspect facings: SE (right-front) and NE (back-right) only — SW/NW are
+  computed by mirroring in the prep script
+- 4-frame walk cycle per facing in a 2×2 grid (contact, passing, contact, passing)
+- hand-painted Stardew-Valley style with clean dark outline and soft cel-shading
+- transparent background (the prep script's flood-fill + interior-pocket detection
+  handles imperfect alpha, but cleaner input = cleaner output)
+- centered in each 512×512 quadrant with empty margin around the character
+
+To add a new character, copy Poncho's prompts and swap the species description.
+
 ## Prompt template (gpt-image-2)
 
 For each direction (replace `{SPECIES}` and `{FACING}`):
